@@ -8,16 +8,15 @@ const (
 
 	MessageOK = "ok"
 
-	ErrProductIDQueryField         = "query param product_id is required"
-	ErrProductIDQueryFieldType     = "query param product_id must be int64"
-	ErrProductCreationNotFound     = "product creation not found"
-	ErrInvalidRateLimitIdentifier  = "invalid rate limit identifier"
-	ErrApiRateLimitExceeded        = "api rate limit exceeded"
-	ErrGetProductRateLimitExceeded = "get_product rate limit exceeded"
+	ErrInvalidRateLimitIdentifier = "invalid rate limit identifier"
+	ErrApiRateLimitExceeded       = "api rate limit exceeded"
+	ErrRoadDataRateLimitExceeded  = "road data rate limit exceeded"
 
-	ApiV1RateLimitRPS         = 40
-	ApiV1RateLimitBurst       = 80
-	GetProductRateLimitRPS    = 10
-	GetProductRateLimitBurst  = 20
-	RateLimitExpiresInMinutes = 3  * time.Minute
+	ErrLimitQueryInvalid = "query param limit must be a positive integer"
+
+	ApiV1RateLimitRPS        = 40
+	ApiV1RateLimitBurst      = 80
+	RoadDataRateLimitRPS     = 20
+	RoadDataRateLimitBurst   = 40
+	RateLimitExpiresInMinutes = 3 * time.Minute
 )

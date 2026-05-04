@@ -52,12 +52,12 @@ func ApiV1RateLimiter() echo.MiddlewareFunc {
 	})
 }
 
-// GetProductRateLimiter возвращает профиль лимитера для get_product.
-func GetProductRateLimiter() echo.MiddlewareFunc {
+// RoadDataRateLimiter лимитер для ручек road_incidents / road_congestion.
+func RoadDataRateLimiter() echo.MiddlewareFunc {
 	return NewRateLimiter(RateLimiterConfig{
-		RPS:                rate.Limit(dto.GetProductRateLimitRPS),
-		Burst:              dto.GetProductRateLimitBurst,
+		RPS:                rate.Limit(dto.RoadDataRateLimitRPS),
+		Burst:              dto.RoadDataRateLimitBurst,
 		ExpiresIn:          dto.RateLimitExpiresInMinutes,
-		TooManyRequestsMsg: dto.ErrGetProductRateLimitExceeded,
+		TooManyRequestsMsg: dto.ErrRoadDataRateLimitExceeded,
 	})
 }

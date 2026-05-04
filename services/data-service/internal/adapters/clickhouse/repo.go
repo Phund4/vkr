@@ -4,7 +4,7 @@ import (
 	"context"
 )
 
-// Repository предоставляет интерфейс для работы с ClickHouse
+// Repository чтение ИТС-таблиц из ClickHouse.
 type Repository struct {
 	client Client
 }

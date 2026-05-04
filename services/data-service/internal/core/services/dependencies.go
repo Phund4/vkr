@@ -6,9 +6,10 @@ import (
 	"data-service/internal/core/domain"
 )
 
-// InputRepository контракт репозитория, используемого сервисным слоем.
-type InputRepository interface {
+// RoadDataRepository контракт репозитория для чтения ИТС-таблиц в ClickHouse.
+type RoadDataRepository interface {
 	Ping(ctx context.Context) error
 	Close(ctx context.Context) error
-	GetProductCreation(ctx context.Context, productID int64) (*domain.ProductCreation, error)
+	ListRoadIncidents(ctx context.Context, p domain.RoadListParams) ([]domain.RoadIncident, error)
+	ListRoadCongestion(ctx context.Context, p domain.RoadListParams) ([]domain.RoadCongestion, error)
 }

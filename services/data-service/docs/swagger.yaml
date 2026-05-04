@@ -1,106 +1,137 @@
 basePath: /
 definitions:
-  dto.GetProductResponse:
+  data-service_internal_adapters_http_dto.ErrorResponse:
     properties:
       message:
         type: string
       status:
         type: string
     type: object
-  dto.ProbeResponse:
+  data-service_internal_adapters_http_dto.ProbeResponse:
     properties:
       message:
         type: string
       status:
         type: boolean
     type: object
-  dto.ProductCreation:
+  data-service_internal_adapters_http_dto.RoadCongestionItem:
     properties:
-      bad_presets:
-        items:
-          type: integer
-        type: array
-      duration:
-        type: integer
-      end_timestamp:
+      camera_id:
         type: string
-      force_trigger:
-        type: boolean
-      group_name:
+      congestion_score:
+        type: number
+      observed_at:
         type: string
-      id:
+      raw_ml:
         type: string
-      preset_conversions:
-        items:
-          type: integer
-        type: array
-      preset_ids:
-        items:
-          type: integer
-        type: array
-      preset_requireds:
-        items:
-          type: boolean
-        type: array
-      preset_scores:
-        items:
-          type: integer
-        type: array
-      presets:
-        items:
-          type: integer
-        type: array
-      product_id:
-        type: integer
-      published_product_presets:
-        type: integer
-      published_product_zero_presets:
-        type: integer
-      timestamp:
+      s3_key:
         type: string
-      trace_id:
+      segment_id:
         type: string
+    type: object
+  data-service_internal_adapters_http_dto.RoadCongestionListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/data-service_internal_adapters_http_dto.RoadCongestionItem'
+        type: array
+    type: object
+  data-service_internal_adapters_http_dto.RoadIncidentItem:
+    properties:
+      camera_id:
+        type: string
+      crash_probability:
+        type: number
+      incident_label:
+        type: string
+      observed_at:
+        type: string
+      raw_ml:
+        type: string
+      s3_key:
+        type: string
+      segment_id:
+        type: string
+    type: object
+  data-service_internal_adapters_http_dto.RoadIncidentsListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/data-service_internal_adapters_http_dto.RoadIncidentItem'
+        type: array
     type: object
 info:
   contact: {}
-  description: 'HTTP API trace-data-service: GET /health и GET /probe/health (liveness),
-    GET /probe/ready (readiness), GET /swagger и /swagger/* (Swagger UI и OpenAPI).'
-  title: Trace Data Service API
+  description: 'HTTP API: health/probe, чтение ClickHouse road_incidents и road_congestion,
+    Swagger.'
+  title: ITS Data Service API
   version: "1.0"
 paths:
-  /api/v1/get_product:
+  /api/v1/road_congestion:
     get:
       parameters:
-      - description: Product ID
+      - description: Фильтр по segment_id
         in: query
-        name: product_id
-        required: true
+        name: segment_id
+        type: string
+      - description: Фильтр по camera_id
+        in: query
+        name: camera_id
+        type: string
+      - description: Лимит строк (по умолчанию 100, макс. 500)
+        in: query
+        name: limit
         type: integer
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.ProductCreation'
+            $ref: '#/definitions/data-service_internal_adapters_http_dto.RoadCongestionListResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/dto.GetProductResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/dto.GetProductResponse'
+            $ref: '#/definitions/data-service_internal_adapters_http_dto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/dto.GetProductResponse'
-      summary: Get product creation by product ID
+            $ref: '#/definitions/data-service_internal_adapters_http_dto.ErrorResponse'
+      summary: Список записей road_congestion
+  /api/v1/road_incidents:
+    get:
+      parameters:
+      - description: Фильтр по segment_id
+        in: query
+        name: segment_id
+        type: string
+      - description: Фильтр по camera_id
+        in: query
+        name: camera_id
+        type: string
+      - description: Лимит строк (по умолчанию 100, макс. 500)
+        in: query
+        name: limit
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/data-service_internal_adapters_http_dto.RoadIncidentsListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/data-service_internal_adapters_http_dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/data-service_internal_adapters_http_dto.ErrorResponse'
+      summary: Список записей road_incidents
   /health:
     get:
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.ProbeResponse'
+            $ref: '#/definitions/data-service_internal_adapters_http_dto.ProbeResponse'
       summary: Liveness / health
   /probe/health:
     get:
@@ -108,7 +139,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.ProbeResponse'
+            $ref: '#/definitions/data-service_internal_adapters_http_dto.ProbeResponse'
       summary: Health (probe path)
   /probe/ready:
     get:
@@ -116,6 +147,6 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.ProbeResponse'
+            $ref: '#/definitions/data-service_internal_adapters_http_dto.ProbeResponse'
       summary: Readiness probe
 swagger: "2.0"
