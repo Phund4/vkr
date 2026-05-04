@@ -1,6 +1,6 @@
 # analytics
 
-Сервис принимает `POST /v1/ingest` (от **`ml_gateway`** с блоком ML и/или от **`data_ingestion`** с полем **telemetry**), обновляет **метрики Prometheus** и пишет в **ClickHouse** только по **ML**-событиям: загруженность (`road_congestion`), инциденты (`road_incidents`).
+Сервис принимает `POST /v1/ingest` (от **ml-serving** с блоком ML) и сообщения из **Kafka** (`its.video.ingest`), обновляет **метрики Prometheus** и пишет в **ClickHouse** только по **ML**-событиям: загруженность (`road_congestion`), инциденты (`road_incidents`).
 
 Локального списка событий нет — только gauge/counter в Prometheus и OLAP в ClickHouse.
 
@@ -25,16 +25,13 @@ go run ./cmd/analytics
 | `CLICKHOUSE_CONGESTION_TABLE` | по умолчанию `road_congestion` |
 | `CRASH_ALERT_THRESHOLD` | порог для `crash_probability` (плюс label `crash`) |
 | `CONGESTION_PERSIST_INTERVAL_SEC` | минимальный интервал (сек.) между строками в таблице загруженности **на одну камеру** (по умолчанию `2`; согласуйте с `CONGESTION_INTERVAL_SEC` в ML) |
-| `MAP_GRPC_LISTEN_ADDR` | gRPC **map.v1.MapPortal** для **map_portal** (по умолчанию `:8097`) |
-| `INFRA_SIM_DATABASE` | БД со справочниками для карты (по умолчанию `its_infra_sim`: `municipalities`, `bus_stops`) |
-| `MUNICIPALITY_ACTIVITY_TTL_SEC` | окно активности города для приёма телеметрии в память карты (по умолчанию `45`) |
-
-При приёме **telemetry** на ingest позиции ТС обновляют in-memory хаб для **map_portal** (нужен непустой `municipality_id` в JSON); отдельного HTTP в map_portal больше нет.
+| `KAFKA_BOOTSTRAP_SERVERS` | брокеры через запятую; пусто — консьюмер Kafka не стартует |
+| `KAFKA_CONSUMER_GROUP` | группа чтения |
+| `KAFKA_TOPIC_VIDEO` | топик видео-событий (по умолчанию `its.video.ingest`) |
 
 ## API
 
-- **gRPC** `map.v1.MapPortal` на `MAP_GRPC_LISTEN_ADDR` — `ListMunicipalities`, `ListStops`, `ListBuses` (использует **map_portal**).
-- `POST /v1/ingest` — JSON как у бывшего `ml_gateway` road-events (`segment_id`, `camera_id`, `observed_at`, `s3_key`, `ml`).
+- `POST /v1/ingest` — JSON road-events (`segment_id`, `camera_id`, `observed_at`, `s3_key`, `ml`).
 - `GET /metrics` — Prometheus.
 - `GET /health` — проверка процесса (не проверяет CH).
 

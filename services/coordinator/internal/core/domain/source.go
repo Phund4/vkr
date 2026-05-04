@@ -2,7 +2,7 @@ package domain
 
 import "time"
 
-// Replica — инстанс data-ingestion в пуле зоны (порядок в zone_workers = tie-break при равной загрузке).
+// Replica — инстанс router в пуле зоны (порядок в zone_workers = tie-break при равной загрузке).
 type Replica struct {
 	ClusterID  string `yaml:"cluster_id" json:"cluster_id"`
 	InstanceID string `yaml:"instance_id" json:"instance_id"`

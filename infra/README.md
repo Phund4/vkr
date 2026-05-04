@@ -66,7 +66,7 @@ docker compose --profile ingest rm -sf mediamtx video-source-sim
 
 - **MinIO (S3)** — API с хоста: `http://localhost:9050`; консоль: http://localhost:9051. Учётные данные: **`minioadmin` / `minioadmin`**. Внутри сети: endpoint `http://minio:9000`.
 
-- **Prometheus** — http://localhost:9090. Конфиг [`prometheus/prometheus.yml`](prometheus/prometheus.yml): scrape **`/metrics`** у прикладных сервисов в сети `traffic-its` (`data-ingestion`, `ml-gateway`, `analytics`, `map-portal`, `ml-serving`, `coordinator`), экспортёры **Elasticsearch**, **PostgreSQL**, **Kafka**, **ClickHouse**, **`cadvisor`**, **`blackbox-exporter`** (HTTP health `coordinator` / `ml-serving`). Часть таргетов может быть DOWN, если сервис не запущен.
+- **Prometheus** — http://localhost:9090. Конфиг [`prometheus/prometheus.yml`](prometheus/prometheus.yml): scrape **`/metrics`** у прикладных сервисов в сети `traffic-its` (`router`, `analytics`, `ml-serving`, `coordinator`), экспортёры **Elasticsearch**, **PostgreSQL**, **Kafka**, **ClickHouse**, **`cadvisor`**, **`blackbox-exporter`** (HTTP health `coordinator` / `ml-serving`). Часть таргетов может быть DOWN, если сервис не запущен.
 
 - **Grafana** — http://localhost:3000, логин по умолчанию **`admin` / `admin`**. Провижининг из [`grafana/provisioning/`](grafana/provisioning/) (папка дашбордов **Traffic**); созданные вручную дашборды и источники сохраняются в томе **`grafana-data`**. В дашборде **`Сервисы`** (uid `kafka-services`): Kafka ingest, ошибки сервисов, `UP/DOWN` по `up{job=…}` для приложений, CPU/RAM контейнеров по имени контейнера (`name` в cAdvisor; лейблы Compose в метриках часто недоступны, в т.ч. на Docker Desktop).
 
@@ -74,19 +74,15 @@ docker compose --profile ingest rm -sf mediamtx video-source-sim
 
 - **video-source-sim** (профиль `ingest`) — читает `../.data/videos/*.mp4`; при отсутствии файлов — синтетические потоки.
 
-- **bus-telemetry-generator** (профиль **`telemetry`**) — контейнер-генератор: раз в **5 с** шлёт gRPC на **`host.docker.internal:50051`** (на хосте должны быть запущены **`data_ingestion`** и **`analytics`**). См. [`services/data-ingestion/README.md`](../services/data-ingestion/README.md).
-
-Профили **`ingest`** (MediaMTX + видео-симулятор) и **`telemetry`** (только генератор автобуса) заданы отдельно. Примеры из каталога `infra`:
+Профиль **`ingest`** (MediaMTX + видео-симулятор). Пример:
 
 ```bash
 docker compose --profile ingest up -d mediamtx video-source-sim
-docker compose --profile telemetry up -d bus-telemetry-generator
-docker compose --profile ingest --profile telemetry up -d
 ```
 
 ## Приложения вне compose
 
-**analytics**, **data-ingestion**, **ml-gateway**, **ml-serving**, **map-portal** (карта по HTTP **8096**, к analytics по gRPC **8097** — см. `MAP_GRPC_LISTEN_ADDR` / `ANALYTICS_GRPC_ADDR`), а также офлайн-набор **`ml-experiments`**, запускаются вручную (см. `.env` в каталогах сервисов): [`services/analytics`](../services/analytics/README.md), [`services/data-ingestion`](../services/data-ingestion/README.md), [`services/ml-gateway`](../services/ml-gateway/README.md), [`services/ml-serving`](../services/ml-serving/README.md), [`services/map-portal`](../services/map-portal/README.md), [`ml-experiments`](../ml-experiments/README.md). Для видео: **data-ingestion** → **ml-serving** → **ml-gateway** → **analytics** → **ClickHouse** (и метрики). Для телеметрии автобуса: **analytics** + **data-ingestion** (gRPC и при необходимости Kafka), затем по желанию **`docker compose --profile telemetry up -d bus-telemetry-generator`**.
+**analytics**, **router**, **ml-serving** при необходимости запускаются вручную (см. `.env` в каталогах сервисов): [`services/analytics`](../services/analytics/README.md), [`services/router`](../services/router/README.md), [`services/ml-serving`](../services/ml-serving/README.md). В compose также поднимаются **coordinator** и **router** для полного контура. Для видео: **router** → **ml-serving** → **analytics** → **ClickHouse** (и метрики); при использовании Kafka события могут дублироваться через топик **`its.video.ingest`**.
 
 При старте compose автоматически выполняются one-shot инициализаторы:
 - `clickhouse-init` — создаёт таблицы `default.road_incidents` и `default.road_congestion`;

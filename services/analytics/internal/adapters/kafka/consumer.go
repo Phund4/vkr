@@ -1,4 +1,4 @@
-// Package kafka — консьюмер событий ingest из Kafka (топики видео/ML и телеметрии).
+// Package kafka — консьюмер событий ingest из Kafka (топик видео/ML).
 package kafka
 
 import (
@@ -25,7 +25,7 @@ func splitBrokers(s string) []string {
 	return out
 }
 
-// RunIngestConsumer читает KAFKA_TOPIC_VIDEO и KAFKA_TOPIC_TELEMETRY до отмены ctx.
+// RunIngestConsumer читает KAFKA_TOPIC_VIDEO до отмены ctx.
 func RunIngestConsumer(ctx context.Context, ingest *services.IngestService, cfg config.Config) {
 	brokers := splitBrokers(cfg.KafkaBootstrap)
 	if len(brokers) == 0 {
@@ -34,7 +34,7 @@ func RunIngestConsumer(ctx context.Context, ingest *services.IngestService, cfg 
 	r := kafkago.NewReader(kafkago.ReaderConfig{
 		Brokers:     brokers,
 		GroupID:     cfg.KafkaConsumerGroup,
-		GroupTopics: []string{cfg.KafkaTopicVideo, cfg.KafkaTopicTelemetry},
+		GroupTopics: []string{cfg.KafkaTopicVideo},
 		MinBytes:    1,
 		MaxBytes:    10e6,
 		MaxWait:     2 * time.Second,
@@ -47,7 +47,7 @@ func RunIngestConsumer(ctx context.Context, ingest *services.IngestService, cfg 
 	slog.Info("analytics kafka consumer",
 		"brokers", brokers,
 		"group", cfg.KafkaConsumerGroup,
-		"topics", []string{cfg.KafkaTopicVideo, cfg.KafkaTopicTelemetry},
+		"topics", []string{cfg.KafkaTopicVideo},
 	)
 	for {
 		m, err := r.ReadMessage(ctx)

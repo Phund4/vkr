@@ -7,7 +7,6 @@ import (
 	"traffic-analytics/internal/adapters/clickhouse"
 	"traffic-analytics/internal/config"
 	"traffic-analytics/internal/core/services"
-	"traffic-analytics/internal/portalhub"
 )
 
 // Deps инициализированные адаптеры и сервис приложения.
@@ -20,9 +19,6 @@ type Deps struct {
 
 	// Ingest HTTP-обработчик приёма событий.
 	Ingest *services.IngestService
-
-	// PortalHub память позиций автобусов для gRPC карты.
-	PortalHub *portalhub.Hub
 
 	// CHAddr нормализованный адрес ClickHouse (для логов).
 	CHAddr string
@@ -38,14 +34,12 @@ func InitializeDependencies(ctx context.Context) (*Deps, error) {
 		return nil, fmt.Errorf("clickhouse: %w", err)
 	}
 
-	hub := portalhub.New(cfg.MunicipalityActivityTTL)
-	ingest := services.NewIngestService(store, cfg, ctx, hub)
+	ingest := services.NewIngestService(store, cfg, ctx)
 	return &Deps{
-		Config:    cfg,
-		Store:     store,
-		Ingest:    ingest,
-		PortalHub: hub,
-		CHAddr:    chAddr,
+		Config: cfg,
+		Store:  store,
+		Ingest: ingest,
+		CHAddr: chAddr,
 	}, nil
 }
 

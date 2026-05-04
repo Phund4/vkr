@@ -26,7 +26,3 @@ sources:
     segment_id: "ring-road-5"
     camera_id: "cam-04"
     rtsp_url: "rtsp://mediamtx:8554/cam-04"
-
-  - source_id: "telemetry-zone-a"
-    data_class: "vehicle_bus_telemetry"
-    zone_id: "zone-a"

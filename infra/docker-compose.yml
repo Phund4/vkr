@@ -74,7 +74,6 @@ services:
           sleep 2
         done
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic its.video.ingest --partitions 3 --replication-factor 1
-        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic its.telemetry.ingest --partitions 3 --replication-factor 1
     networks:
       - its
     restart: "no"
@@ -363,13 +362,10 @@ services:
     environment:
       LISTEN_ADDR: ":8093"
       CLICKHOUSE_ADDR: clickhouse:9000
-      MAP_GRPC_LISTEN_ADDR: ":8097"
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       KAFKA_TOPIC_VIDEO: its.video.ingest
-      KAFKA_TOPIC_TELEMETRY: its.telemetry.ingest
     ports:
       - "8093:8093"
-      - "8097:8097"
     depends_on:
       clickhouse:
         condition: service_healthy
@@ -384,52 +380,28 @@ services:
     networks:
       - its
 
-  ml-gateway:
-    build:
-      context: ../services/ml-gateway
-      dockerfile: Dockerfile
-    hostname: ml-gateway
-    environment:
-      LISTEN_ADDR: ":8092"
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      KAFKA_TOPIC_VIDEO: its.video.ingest
-      ANALYTICS_BASE_URL: http://analytics:8093
-    ports:
-      - "8092:8092"
-    depends_on:
-      kafka:
-        condition: service_healthy
-      kafka-topics-init:
-        condition: service_completed_successfully
-      analytics:
-        condition: service_started
-    networks:
-      - its
-
   ml-serving:
     build:
       context: ../services/ml-serving
       dockerfile: Dockerfile
     hostname: ml-serving
     environment:
-      REPO_ROOT: /workspace
-      ML_GATEWAY_URL: http://ml-gateway:8092
-      WINNERS_JSON: /workspace/.data/ml-experiments/winners.json
-    volumes:
-      - ..:/workspace:ro
+      SERVING_ROOT: /app
+      ANALYTICS_INGEST_URL: http://analytics:8093/v1/ingest
+      WINNERS_JSON: /app/models/winners.json
     ports:
       - "8000:8000"
     depends_on:
-      ml-gateway:
+      analytics:
         condition: service_started
     networks:
       - its
 
-  data-ingestion:
+  router:
     build:
-      context: ../services/data-ingestion
+      context: ../services/router
       dockerfile: Dockerfile
-    hostname: data-ingestion
+    hostname: router
     environment:
       CONFIG_PATH: /app/config.cameras.docker.yaml
       COORDINATOR_BASE_URL: http://coordinator:8098
@@ -440,21 +412,13 @@ services:
       AWS_SECRET_ACCESS_KEY: minioadmin
       S3_ENDPOINT: http://minio:9000
       ML_BASE_URL: http://ml-serving:8000
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      KAFKA_TOPIC_TELEMETRY: its.telemetry.ingest
-      TELEMETRY_GRPC_LISTEN_ADDR: ":50051"
     volumes:
-      - ../services/data-ingestion/config.cameras.docker.yaml:/app/config.cameras.docker.yaml:ro
+      - ../services/router/config.cameras.docker.yaml:/app/config.cameras.docker.yaml:ro
     ports:
       - "9091:9091"
-      - "50051:50051"
     depends_on:
       coordinator:
         condition: service_started
-      kafka:
-        condition: service_healthy
-      kafka-topics-init:
-        condition: service_completed_successfully
       minio-init:
         condition: service_completed_successfully
       ml-serving:
@@ -462,35 +426,6 @@ services:
       mediamtx:
         condition: service_started
       video-source-sim:
-        condition: service_started
-    networks:
-      - its
-
-  bus-telemetry-generator:
-    build:
-      context: ..
-      dockerfile: data-generators/telemetry-data/Dockerfile
-    environment:
-      BUS_TELEMETRY_GRPC_ADDR: data-ingestion:50051
-      BUS_TELEMETRY_ALL_CITIES: "true"
-    depends_on:
-      data-ingestion:
-        condition: service_started
-    networks:
-      - its
-
-  map-portal:
-    build:
-      context: ../services
-      dockerfile: map-portal/Dockerfile
-    hostname: map-portal
-    environment:
-      LISTEN_ADDR: ":8096"
-      ANALYTICS_GRPC_ADDR: analytics:8097
-    ports:
-      - "8096:8096"
-    depends_on:
-      analytics:
         condition: service_started
     networks:
       - its
@@ -510,10 +445,8 @@ services:
     networks:
       - its
     depends_on:
-      - data-ingestion
-      - ml-gateway
+      - router
       - analytics
-      - map-portal
       - ml-serving
       - coordinator
       - elasticsearch-exporter

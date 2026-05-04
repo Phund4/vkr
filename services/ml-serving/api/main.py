@@ -13,9 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-# ROOT = services/ml-serving; репозиторий — на два уровня выше (или REPO_ROOT из окружения для Docker).
-_repo_root = os.environ.get("REPO_ROOT", "").strip()
-REPO_ROOT = Path(_repo_root).resolve() if _repo_root else ROOT.parent.parent
+SERVING_ROOT = Path(os.environ.get("SERVING_ROOT", str(ROOT))).resolve()
 
 try:
     from dotenv import load_dotenv
@@ -67,16 +65,15 @@ def _congestion_interval_sec() -> float:
 
 
 def _resolve_checkpoint_path(raw: str) -> Path:
-    """Путь из env или winners.json: абсолютный или относительно корня репозитория."""
+    """Absolute path, or relative to SERVING_ROOT."""
     p = Path(raw.strip())
     if p.is_file():
         return p.resolve()
-    q = (REPO_ROOT / raw.strip().lstrip("/")).resolve()
-    return q
+    return (SERVING_ROOT / raw.strip().lstrip("/")).resolve()
 
 
 def _winners_default_path() -> Path:
-    return Path(os.environ.get("WINNERS_JSON", str(REPO_ROOT / ".data" / "ml-experiments" / "winners.json")))
+    return Path(os.environ.get("WINNERS_JSON", str(SERVING_ROOT / "models" / "winners.json")))
 
 
 def _load_winners_checkpoints() -> tuple[Path | None, Path | None]:
@@ -109,8 +106,8 @@ def startup() -> None:
     _acc_from_winners = False
     _cong_from_winners = False
 
-    default_acc = REPO_ROOT / ".data" / "ml-experiments" / "artifacts" / "accident" / "baseline-cnn" / "best.pt"
-    default_cong = REPO_ROOT / ".data" / "ml-experiments" / "artifacts" / "congestion" / "tiny-cnn" / "best.pt"
+    default_acc = SERVING_ROOT / "artifacts" / "accident" / "baseline-cnn" / "best.pt"
+    default_cong = SERVING_ROOT / "artifacts" / "congestion" / "tiny-cnn" / "best.pt"
 
     w_acc, w_cong = _load_winners_checkpoints()
     wp = _winners_default_path()
@@ -146,11 +143,11 @@ def startup() -> None:
         _cong_tf = make_transform(_cong_img)
         _cong_ckpt_used = str(cong_path.resolve())
 
-    if not os.environ.get("ML_GATEWAY_URL", "").strip():
+    ingest = os.environ.get("ANALYTICS_INGEST_URL", "").strip()
+    if not ingest:
         _log.warning(
-            "ML_GATEWAY_URL не задан: POST /v1/process отдаёт только JSON; "
-            "ml-gateway и Kafka (its.video.ingest) не получают события. "
-            "Задайте переменную окружения или заполните services/ml-serving/.env"
+            "ANALYTICS_INGEST_URL не задан: POST /v1/process без push в analytics "
+            "(только JSON-ответ, если не задан режим ingest)."
         )
 
 
@@ -166,13 +163,14 @@ def health():
         "accident_loaded": _acc_model is not None,
         "congestion_loaded": _cong_model is not None,
         "congestion_interval_sec": _congestion_interval_sec(),
-        "ml_gateway_push": bool(os.environ.get("ML_GATEWAY_URL", "").strip()),
+        "analytics_ingest_push": bool(os.environ.get("ANALYTICS_INGEST_URL", "").strip()),
         "accident_checkpoint": _acc_ckpt_used or None,
         "congestion_checkpoint": _cong_ckpt_used or None,
         "winners_json": _winners_json_path or None,
         "accident_from_winners_json": _acc_from_winners,
         "congestion_from_winners_json": _cong_from_winners,
-        "ml_gateway_configured": bool(os.environ.get("ML_GATEWAY_URL", "").strip()),
+        "analytics_ingest_configured": bool(os.environ.get("ANALYTICS_INGEST_URL", "").strip()),
+        "serving_root": str(SERVING_ROOT),
     }
 
 
@@ -230,14 +228,11 @@ def _process_payload(raw: bytes, segment_id: str = "", camera_id: str = "") -> d
     return {"incident": incident, "congestion": congestion}
 
 
-async def _push_to_ml_gateway(ml_payload: dict, segment_id: str, camera_id: str, s3_key: str, observed_at: str) -> None:
-    base = os.environ.get("ML_GATEWAY_URL", "").strip().rstrip("/")
-    if not base:
+async def _push_analytics_ingest(ml_payload: dict, segment_id: str, camera_id: str, s3_key: str, observed_at: str) -> None:
+    url = os.environ.get("ANALYTICS_INGEST_URL", "").strip()
+    if not url:
         return
-    path = os.environ.get("ML_GATEWAY_PATH", "/v1/road-events").strip()
-    if not path.startswith("/"):
-        path = "/" + path
-    timeout = float(os.environ.get("ML_GATEWAY_TIMEOUT", "10"))
+    timeout = float(os.environ.get("ANALYTICS_INGEST_TIMEOUT_SEC", "15"))
     body = {
         "segment_id": segment_id,
         "camera_id": camera_id,
@@ -247,11 +242,11 @@ async def _push_to_ml_gateway(ml_payload: dict, segment_id: str, camera_id: str,
     }
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
-            r = await client.post(f"{base}{path}", json=body)
+            r = await client.post(url, json=body)
     except httpx.RequestError as e:
-        raise HTTPException(502, f"ml_gateway unreachable: {e}") from e
+        raise HTTPException(502, f"analytics ingest unreachable: {e}") from e
     if r.status_code < 200 or r.status_code >= 300:
-        raise HTTPException(502, f"ml_gateway HTTP {r.status_code}: {r.text[:512]}")
+        raise HTTPException(502, f"analytics ingest HTTP {r.status_code}: {r.text[:512]}")
 
 
 @app.post("/v1/process")
@@ -263,15 +258,15 @@ async def process(
     observed_at: str | None = Form(None),
 ):
     raw = await image.read()
-    gw = os.environ.get("ML_GATEWAY_URL", "").strip()
+    ingest_url = os.environ.get("ANALYTICS_INGEST_URL", "").strip()
     seg = (segment_id or "").strip()
     cam = (camera_id or "").strip()
-    if gw:
+    if ingest_url:
         if not seg or not cam:
-            raise HTTPException(400, "segment_id and camera_id are required when ML_GATEWAY_URL is set")
+            raise HTTPException(400, "segment_id and camera_id are required when ANALYTICS_INGEST_URL is set")
         payload = _process_payload(raw, seg, cam)
         obs = (observed_at or "").strip() or datetime.now(timezone.utc).isoformat()
         key = (s3_key or "").strip()
-        await _push_to_ml_gateway(payload, seg, cam, key, obs)
+        await _push_analytics_ingest(payload, seg, cam, key, obs)
         return Response(status_code=204)
     return JSONResponse(_process_payload(raw, seg, cam))

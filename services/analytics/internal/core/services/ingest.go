@@ -14,7 +14,6 @@ import (
 	"traffic-analytics/internal/adapters/metrics"
 	"traffic-analytics/internal/config"
 	"traffic-analytics/internal/core/domain"
-	"traffic-analytics/internal/portalhub"
 )
 
 // errIngestValidation обязательные поля JSON отсутствуют.
@@ -38,9 +37,6 @@ type IngestService struct {
 	// appCtx отмена при остановке процесса.
 	appCtx context.Context
 
-	// portalHub память телеметрии для карты.
-	portalHub *portalhub.Hub
-
 	// mu защита lastCongest.
 	mu sync.Mutex
 
@@ -52,12 +48,11 @@ type IngestService struct {
 }
 
 // NewIngestService создаёт сервис приёма.
-func NewIngestService(store EventStore, cfg config.Config, appCtx context.Context, portalHub *portalhub.Hub) *IngestService {
+func NewIngestService(store EventStore, cfg config.Config, appCtx context.Context) *IngestService {
 	return &IngestService{
 		store:        store,
 		cfg:          cfg,
 		appCtx:       appCtx,
-		portalHub:    portalHub,
 		lastCongest:  make(map[string]time.Time),
 		clickhouseTO: clickHouseQueryTimeout * time.Second,
 	}
@@ -81,7 +76,7 @@ func (s *IngestService) HandleIngest(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// ProcessIngest разбирает JSON тела дорожного события (как POST /v1/ingest) и пишет метрики/CH/хаб.
+// ProcessIngest разбирает JSON тела дорожного события (как POST /v1/ingest) и пишет метрики/CH.
 func (s *IngestService) ProcessIngest(ctx context.Context, body []byte) error {
 	var ev domain.RoadEvent
 	if err := json.Unmarshal(body, &ev); err != nil {
@@ -98,11 +93,6 @@ func (s *IngestService) ProcessIngest(ctx context.Context, body []byte) error {
 	}
 
 	hasML := len(ev.ML) > 0 && string(ev.ML) != "null"
-	hasTelemetry := len(ev.Telemetry) > 0 && string(ev.Telemetry) != "null"
-	if hasTelemetry {
-		metrics.TelemetryIngested.WithLabelValues(seg, cam).Inc()
-		s.applyTelemetryToPortalHub(ev.Telemetry)
-	}
 
 	var ml domain.MLParsed
 	if hasML {
@@ -205,39 +195,3 @@ func (s *IngestService) markCongestionWritten(seg, cam string) {
 	s.lastCongest[k] = time.Now()
 	s.mu.Unlock()
 }
-
-func (s *IngestService) applyTelemetryToPortalHub(raw json.RawMessage) {
-	if s.portalHub == nil {
-		return
-	}
-	var tel map[string]any
-	if err := json.Unmarshal(raw, &tel); err != nil {
-		slog.Debug("portal hub telemetry: skip bad json", "err", err)
-		return
-	}
-	mid, _ := tel["municipality_id"].(string)
-	if strings.TrimSpace(mid) == "" {
-		slog.Debug("portal hub telemetry skipped: empty municipality_id")
-		return
-	}
-	vid, _ := tel["vehicle_id"].(string)
-	if strings.TrimSpace(vid) == "" {
-		return
-	}
-	rid, _ := tel["route_id"].(string)
-	lat, _ := tel["lat"].(float64)
-	lon, _ := tel["lon"].(float64)
-	speed, _ := tel["speed_kmh"].(float64)
-	head, _ := tel["heading_deg"].(float64)
-	at, _ := tel["observed_at_rfc3339"].(string)
-	s.portalHub.UpsertBus(strings.TrimSpace(mid), portalhub.BusSnapshot{
-		VehicleID:         strings.TrimSpace(vid),
-		RouteID:           strings.TrimSpace(rid),
-		Lat:               lat,
-		Lon:               lon,
-		SpeedKmh:          speed,
-		HeadingDeg:        head,
-		ObservedAtRfc3339: strings.TrimSpace(at),
-	})
-}
-

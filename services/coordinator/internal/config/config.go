@@ -95,8 +95,6 @@ func LoadFromEnv() (*Root, error) {
 				if fr.Sources[i].CameraID != "" {
 					fr.Sources[i].SourceID = fr.Sources[i].CameraID
 				}
-			case domain.DataClassVehicleBusTelemetry:
-				fr.Sources[i].SourceID = "telemetry-" + fr.Sources[i].ZoneID
 			}
 		}
 		if fr.Sources[i].ZoneID == "" {
@@ -107,8 +105,6 @@ func LoadFromEnv() (*Root, error) {
 			if fr.Sources[i].SegmentID == "" || fr.Sources[i].CameraID == "" || fr.Sources[i].RTSPURL == "" {
 				return nil, fmt.Errorf("sources[%d]: road_segment_video requires segment_id, camera_id, rtsp_url", i)
 			}
-		case domain.DataClassVehicleBusTelemetry:
-			// только зона и source_id (по умолчанию telemetry-<zone>)
 		}
 	}
 	if fr.ZoneWorkers == nil {

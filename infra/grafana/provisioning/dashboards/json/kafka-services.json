@@ -1,6 +1,6 @@
 {
   "annotations": { "list": [] },
-  "description": "Kafka (ingest analytics, телеметрия), ошибки и доступность сервисов, ресурсы контейнеров Compose.",
+  "description": "Kafka (ingest analytics), ошибки и доступность сервисов, ресурсы контейнеров Compose.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -21,7 +21,7 @@
           "unit": "ops"
         }
       },
-      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 0 },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 0 },
       "id": 1,
       "options": {
         "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "right", "showLegend": true }
@@ -34,30 +34,6 @@
         }
       ],
       "title": "Analytics: сообщения из Kafka (по топикам)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": { "drawStyle": "line", "fillOpacity": 20, "showPoints": "never" },
-          "unit": "ops"
-        }
-      },
-      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 0 },
-      "id": 2,
-      "options": {
-        "legend": { "displayMode": "list", "placement": "bottom" }
-      },
-      "targets": [
-        {
-          "expr": "sum(rate(data_ingestion_bus_telemetry_forwarded_total[5m]))",
-          "legendFormat": "forwarded",
-          "refId": "A"
-        }
-      ],
-      "title": "Data ingestion: телеметрия переслана",
       "type": "timeseries"
     },
     {
@@ -82,19 +58,14 @@
       },
       "targets": [
         {
-          "expr": "sum by (stage) (rate(data_ingestion_operation_errors_total[5m]))",
-          "legendFormat": "data_ingestion {{stage}}",
+          "expr": "sum by (stage) (rate(router_operation_errors_total[5m]))",
+          "legendFormat": "router {{stage}}",
           "refId": "A"
-        },
-        {
-          "expr": "sum by (stage) (rate(ml_gateway_operation_errors_total[5m]))",
-          "legendFormat": "ml_gateway {{stage}}",
-          "refId": "B"
         },
         {
           "expr": "sum by (stage) (rate(analytics_ingest_errors_total[5m]))",
           "legendFormat": "analytics {{stage}}",
-          "refId": "C"
+          "refId": "B"
         }
       ],
       "title": "Ошибки сервисов",
@@ -174,12 +145,12 @@
       },
       "targets": [
         {
-          "expr": "max by (job) (up{job=\"ml_gateway\"})",
-          "legendFormat": "ml_gateway",
+          "expr": "max by (job) (up{job=\"router\"})",
+          "legendFormat": "router",
           "refId": "A"
         }
       ],
-      "title": "ml_gateway",
+      "title": "router",
       "type": "stat"
     },
     {
@@ -215,12 +186,12 @@
       },
       "targets": [
         {
-          "expr": "max by (job) (up{job=\"data_ingestion\"})",
-          "legendFormat": "data_ingestion",
+          "expr": "max by (job) (up{job=\"ml_serving\"})",
+          "legendFormat": "ml_serving",
           "refId": "A"
         }
       ],
-      "title": "data_ingestion",
+      "title": "ml_serving",
       "type": "stat"
     },
     {
@@ -246,47 +217,6 @@
       },
       "gridPos": { "h": 5, "w": 4, "x": 12, "y": 18 },
       "id": 7,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "justifyMode": "center",
-        "orientation": "horizontal",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
-        "textMode": "value"
-      },
-      "targets": [
-        {
-          "expr": "max by (job) (up{job=\"map_portal\"})",
-          "legendFormat": "map_portal",
-          "refId": "A"
-        }
-      ],
-      "title": "map_portal",
-      "type": "stat"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "thresholds" },
-          "mappings": [
-            { "options": { "0": { "color": "red", "index": 0, "text": "DOWN" } }, "type": "value" },
-            { "options": { "1": { "color": "green", "index": 1, "text": "UP" } }, "type": "value" }
-          ],
-          "max": 1,
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "red", "value": null },
-              { "color": "green", "value": 1 }
-            ]
-          },
-          "unit": "none"
-        }
-      },
-      "gridPos": { "h": 5, "w": 4, "x": 16, "y": 18 },
-      "id": 8,
       "options": {
         "colorMode": "background",
         "graphMode": "none",
@@ -326,6 +256,47 @@
           "unit": "none"
         }
       },
+      "gridPos": { "h": 5, "w": 4, "x": 16, "y": 18 },
+      "id": 8,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "expr": "max by (job) (up{job=\"kafka\"})",
+          "legendFormat": "kafka_exporter",
+          "refId": "A"
+        }
+      ],
+      "title": "kafka_exporter",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "0": { "color": "red", "index": 0, "text": "DOWN" } }, "type": "value" },
+            { "options": { "1": { "color": "green", "index": 1, "text": "UP" } }, "type": "value" }
+          ],
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
       "gridPos": { "h": 5, "w": 4, "x": 20, "y": 18 },
       "id": 9,
       "options": {
@@ -338,12 +309,12 @@
       },
       "targets": [
         {
-          "expr": "max by (job) (up{job=\"ml_serving\"})",
-          "legendFormat": "ml_serving",
+          "expr": "max by (job) (up{job=\"clickhouse\"})",
+          "legendFormat": "clickhouse_exporter",
           "refId": "A"
         }
       ],
-      "title": "ml_serving",
+      "title": "clickhouse_exporter",
       "type": "stat"
     },
     {

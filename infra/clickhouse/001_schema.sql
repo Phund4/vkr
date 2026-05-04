@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS its_infra_sim.municipalities
 )
 ENGINE = MergeTree
 ORDER BY municipality_id
-COMMENT 'Справочник населённых пунктов для map_portal (имитация)';
+COMMENT 'Справочник населённых пунктов (имитация инфраструктуры)';
 
 CREATE TABLE IF NOT EXISTS its_infra_sim.bus_stops
 (

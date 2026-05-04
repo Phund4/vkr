@@ -7,7 +7,7 @@ type RoadEvent struct {
 	// SegmentID логический сегмент дороги / линии.
 	SegmentID string `json:"segment_id"`
 
-	// CameraID идентификатор источника (камера или «виртуальный» для телеметрии).
+	// CameraID идентификатор камеры.
 	CameraID string `json:"camera_id"`
 
 	// ObservedAt время события RFC3339.
@@ -18,9 +18,6 @@ type RoadEvent struct {
 
 	// ML сырой JSON ответа ML (инцидент/загруженность).
 	ML json.RawMessage `json:"ml,omitempty"`
-
-	// Telemetry сырой JSON телеметрии ТС (без ML).
-	Telemetry json.RawMessage `json:"telemetry,omitempty"`
 }
 
 // IncidentBlock поддерево ml.incident.

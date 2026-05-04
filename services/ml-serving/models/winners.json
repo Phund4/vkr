@@ -1,0 +1,8 @@
+{
+  "accident": {
+    "checkpoint": "artifacts/accident/baseline-cnn/best.pt"
+  },
+  "congestion": {
+    "checkpoint": "artifacts/congestion/tiny-cnn/best.pt"
+  }
+}

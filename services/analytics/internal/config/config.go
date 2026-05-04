@@ -37,26 +37,14 @@ type Config struct {
 	// CongestionPersistInterval минимальный интервал записи congestion на пару (segment, camera).
 	CongestionPersistInterval time.Duration
 
-	// MapGRPCListenAddr адрес gRPC map.v1.MapPortal для map_portal.
-	MapGRPCListenAddr string
-
-	// InfraSimDatabase БД со справочниками карты (municipalities, bus_stops).
-	InfraSimDatabase string
-
-	// MunicipalityActivityTTL окно «активности» города для приёма телеметрии в память карты.
-	MunicipalityActivityTTL time.Duration
-
 	// KafkaBootstrap серверы брокера (через запятую); пусто — консьюмер Kafka не запускается.
 	KafkaBootstrap string
 
 	// KafkaConsumerGroup группа для чтения топиков ingest.
 	KafkaConsumerGroup string
 
-	// KafkaTopicVideo топик событий ML/видео (ml-gateway → analytics).
+	// KafkaTopicVideo топик событий ML/видео (опционально; основной путь — HTTP POST /v1/ingest).
 	KafkaTopicVideo string
-
-	// KafkaTopicTelemetry топик телеметрии ТС (data-ingestion → analytics).
-	KafkaTopicTelemetry string
 }
 
 // Load читает переменные окружения и возвращает Config с дефолтами (предварительно подгружает .env).
@@ -71,9 +59,6 @@ func Load() Config {
 		CongestionTable:           "road_congestion",
 		CrashAlertThreshold:       0.5,
 		CongestionPersistInterval: 2 * time.Second,
-		MapGRPCListenAddr:         ":8097",
-		InfraSimDatabase:          "its_infra_sim",
-		MunicipalityActivityTTL:   45 * time.Second,
 	}
 	if v := strings.TrimSpace(os.Getenv("LISTEN_ADDR")); v != "" {
 		c.ListenAddr = v
@@ -104,17 +89,6 @@ func Load() Config {
 			c.CongestionPersistInterval = time.Duration(sec * float64(time.Second))
 		}
 	}
-	if v := strings.TrimSpace(os.Getenv("MAP_GRPC_LISTEN_ADDR")); v != "" {
-		c.MapGRPCListenAddr = v
-	}
-	if v := strings.TrimSpace(os.Getenv("INFRA_SIM_DATABASE")); v != "" {
-		c.InfraSimDatabase = v
-	}
-	if v := strings.TrimSpace(os.Getenv("MUNICIPALITY_ACTIVITY_TTL_SEC")); v != "" {
-		if sec, err := strconv.ParseFloat(v, 64); err == nil && sec > 0 {
-			c.MunicipalityActivityTTL = time.Duration(sec * float64(time.Second))
-		}
-	}
 	c.KafkaBootstrap = strings.TrimSpace(os.Getenv("KAFKA_BOOTSTRAP_SERVERS"))
 	c.KafkaConsumerGroup = strings.TrimSpace(os.Getenv("KAFKA_CONSUMER_GROUP"))
 	if c.KafkaConsumerGroup == "" {
@@ -123,10 +97,6 @@ func Load() Config {
 	c.KafkaTopicVideo = strings.TrimSpace(os.Getenv("KAFKA_TOPIC_VIDEO"))
 	if c.KafkaTopicVideo == "" {
 		c.KafkaTopicVideo = "its.video.ingest"
-	}
-	c.KafkaTopicTelemetry = strings.TrimSpace(os.Getenv("KAFKA_TOPIC_TELEMETRY"))
-	if c.KafkaTopicTelemetry == "" {
-		c.KafkaTopicTelemetry = "its.telemetry.ingest"
 	}
 	return c
 }
