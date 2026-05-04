@@ -1,15 +1,21 @@
-package app
+package httpmetrics
 
 import (
 	"context"
 	"log/slog"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-// RunMetricsServer поднимает только HTTP /metrics; блокируется до отмены ctx, затем делает Shutdown.
+const (
+	readHeaderTimeout = 10 * time.Second
+	shutdownTimeout   = 10 * time.Second
+)
+
+// RunMetricsServer /metrics до отмены ctx.
 func RunMetricsServer(ctx context.Context, listenAddr string) error {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
@@ -17,7 +23,7 @@ func RunMetricsServer(ctx context.Context, listenAddr string) error {
 		Addr:              listenAddr,
 		Handler:           mux,
 		BaseContext:       func(net.Listener) context.Context { return ctx },
-		ReadHeaderTimeout: metricsReadHeaderTimeout,
+		ReadHeaderTimeout: readHeaderTimeout,
 	}
 
 	go func() {
@@ -28,7 +34,7 @@ func RunMetricsServer(ctx context.Context, listenAddr string) error {
 
 	<-ctx.Done()
 	slog.Info("router shutdown signal, stopping metrics server")
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), metricsShutdownTimeout)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		slog.Warn("metrics server shutdown", "err", err)

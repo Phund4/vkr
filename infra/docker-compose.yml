@@ -340,12 +340,7 @@ services:
     hostname: coordinator
     environment:
       DATABASE_URL: postgres://coordinator:coordinator@postgres:5432/coordinator?sslmode=disable
-      SOURCES_CONFIG_PATH: /config/sources.yaml
-      INGESTION_INSTANCES_PATH: /config/ingestion_instances.yaml
       LISTEN_ADDR: ":8098"
-    volumes:
-      - ../services/coordinator/sources.yaml:/config/sources.yaml:ro
-      - ../services/coordinator/ingestion_instances.yaml:/config/ingestion_instances.yaml:ro
     ports:
       - "8098:8098"
     depends_on:

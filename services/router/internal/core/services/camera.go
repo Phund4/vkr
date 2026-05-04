@@ -13,13 +13,10 @@ import (
 
 	"router/internal/adapters/capture"
 	"router/internal/adapters/metrics"
-	"router/internal/adapters/ml"
-	"router/internal/adapters/s3"
-	"router/internal/config"
+	s3store "router/internal/adapters/s3"
 	"router/internal/core/domain"
 )
 
-// enqueueFrame кладёт кадр в очередь; при переполнении выбрасывает старый кадр, чтобы чтение из ffmpeg не стопорилось на ML/S3.
 func enqueueFrame(ch chan []byte, frame []byte) {
 	select {
 	case ch <- frame:
@@ -35,113 +32,160 @@ func enqueueFrame(ch chan []byte, frame []byte) {
 	}
 }
 
-// RunCamera в цикле подключается к RTSP, читает кадры, заливает PNG в S3 и вызывает ML process.
-// targetFPS задаёт дискретизацию в ffmpeg; processWorkers — сколько кадров с одной камеры обрабатывается параллельно (иначе фактический FPS ограничен latency S3+ML).
+func frameChanCapacity(processWorkers int) int {
+	c := processWorkers * 2
+	if c < 4 {
+		return 4
+	}
+	return c
+}
+
+// RunCamera цикл RTSP → S3 → ML для одной камеры.
 func RunCamera(
 	ctx context.Context,
-	cam config.Camera,
-	store *s3store.Client,
-	mlc *mlclient.Client,
+	cam domain.Camera,
+	store S3Uploader,
+	mlc MLProcessor,
 	s3Prefix string,
 	ffmpegPath string,
 	targetFPS float64,
 	processWorkers int,
 ) {
-	log := slog.With("segment", cam.SegmentID, "camera", cam.CameraID)
-	prefix := strings.Trim(s3Prefix, "/")
 	var frameNo atomic.Uint64
-	var lastUpstreamLog time.Time
-	var lastMLLog time.Time
+	var lastUpstreamLog, lastMLLog time.Time
 	backoff := time.Duration(reconnectBackoffSec) * time.Second
 
+	s := &cameraSession{
+		ctx:              ctx,
+		cam:              cam,
+		store:            store,
+		mlc:              mlc,
+		prefix:           strings.Trim(s3Prefix, "/"),
+		ffmpegPath:       ffmpegPath,
+		targetFPS:        targetFPS,
+		processWorkers:   processWorkers,
+		log:              slog.With("segment", cam.SegmentID, "camera", cam.CameraID),
+		frameNo:          &frameNo,
+		lastUpstreamLog:  &lastUpstreamLog,
+		lastMLLog:        &lastMLLog,
+	}
+
 	for ctx.Err() == nil {
-		subCtx, cancel := context.WithCancel(ctx)
-		pipe, err := capture.FFmpegPipe(subCtx, ffmpegPath, cam.RTSPURL, targetFPS)
-		if err != nil {
-			metrics.OperationErrors.WithLabelValues("ffmpeg_start").Inc()
-			logSourceIssueThrottled(&lastUpstreamLog, log, "ffmpeg start (source not ready or invalid URL)", "err", err)
-			cancel()
-			sleepBackoff(ctx, backoff)
-			continue
-		}
-		sc := capture.NewScanner(pipe)
-		bufCap := processWorkers * 2
-		if bufCap < 4 {
-			bufCap = 4
-		}
-		frameCh := make(chan []byte, bufCap)
-
-		var readerWG sync.WaitGroup
-		readerWG.Add(1)
-		go func() {
-			defer readerWG.Done()
-			defer close(frameCh)
-			for {
-				frame, err := sc.ReadFrameCtx(subCtx)
-				if err != nil {
-					if errors.Is(err, context.Canceled) {
-						return
-					}
-					if errors.Is(err, io.EOF) {
-						return
-					}
-					metrics.OperationErrors.WithLabelValues("frame_read").Inc()
-					logSourceIssueThrottled(&lastUpstreamLog, log, "frame read (stream interrupted or paused)", "err", err)
-					return
-				}
-				enqueueFrame(frameCh, frame)
-			}
-		}()
-
-		var workersWG sync.WaitGroup
-		for range processWorkers {
-			workersWG.Add(1)
-			go func() {
-				defer workersWG.Done()
-				for frame := range frameCh {
-					n := frameNo.Add(1)
-					now := time.Now().UTC()
-					day := now.Format("2006-01-02")
-					ts := now.UnixNano()
-					key := fmt.Sprintf("%s/%s/%s/frame_%d.png", prefix, day, cam.CameraID, ts)
-
-					pngBytes, err := s3store.JPEGBytesToPNG(frame)
-					if err != nil {
-						metrics.OperationErrors.WithLabelValues("s3_put").Inc()
-						log.Error("jpeg to png", "err", err)
-						continue
-					}
-					if err := store.PutPNG(ctx, key, pngBytes); err != nil {
-						metrics.OperationErrors.WithLabelValues("s3_put").Inc()
-						log.Error("s3 put", "key", key, "err", err)
-					}
-
-					meta := domain.ProcessMeta{
-						SegmentID:  cam.SegmentID,
-						CameraID:   cam.CameraID,
-						S3Key:      key,
-						ObservedAt: now.Format(time.RFC3339Nano),
-					}
-					if err := mlc.PostProcess(ctx, frame, "frame.jpg", meta); err != nil {
-						metrics.OperationErrors.WithLabelValues("ml_process").Inc()
-						logSourceIssueThrottled(&lastMLLog, log, "ml process", "err", err)
-					}
-
-					if n%frameLogEveryN == 0 {
-						log.Info("frames", "count", n, "last_key", key)
-					}
-				}
-			}()
-		}
-
-		readerWG.Wait()
-		workersWG.Wait()
-		_ = pipe.Close()
-		cancel()
+		s.runOnce(backoff)
 		if ctx.Err() != nil {
 			return
 		}
-		logSourceIssueThrottled(&lastUpstreamLog, log, "source stopped delivering frames, reconnecting", "rtsp_url", cam.RTSPURL)
-		sleepBackoff(ctx, backoff)
+	}
+}
+
+type cameraSession struct {
+	ctx             context.Context
+	cam             domain.Camera
+	store           S3Uploader
+	mlc             MLProcessor
+	prefix          string
+	ffmpegPath      string
+	targetFPS       float64
+	processWorkers  int
+	log             *slog.Logger
+	frameNo         *atomic.Uint64
+	lastUpstreamLog *time.Time
+	lastMLLog       *time.Time
+}
+
+func (s *cameraSession) runOnce(backoff time.Duration) {
+	subCtx, cancel := context.WithCancel(s.ctx)
+	pipe, err := capture.FFmpegPipe(subCtx, s.ffmpegPath, s.cam.RTSPURL, s.targetFPS)
+	if err != nil {
+		metrics.OperationErrors.WithLabelValues("ffmpeg_start").Inc()
+		logSourceIssueThrottled(s.lastUpstreamLog, s.log, "ffmpeg start (source not ready or invalid URL)", "err", err)
+		cancel()
+		sleepBackoff(s.ctx, backoff)
+		return
+	}
+
+	sc := capture.NewScanner(pipe)
+	frameCh := make(chan []byte, frameChanCapacity(s.processWorkers))
+
+	var readerWG sync.WaitGroup
+	readerWG.Add(1)
+	go func() {
+		defer readerWG.Done()
+		defer close(frameCh)
+		s.readFramesIntoChannel(subCtx, sc, frameCh)
+	}()
+
+	var workersWG sync.WaitGroup
+	for range s.processWorkers {
+		workersWG.Add(1)
+		go func() {
+			defer workersWG.Done()
+			for frame := range frameCh {
+				s.handleFrame(frame)
+			}
+		}()
+	}
+
+	readerWG.Wait()
+	workersWG.Wait()
+	_ = pipe.Close()
+	cancel()
+
+	if s.ctx.Err() != nil {
+		return
+	}
+	logSourceIssueThrottled(s.lastUpstreamLog, s.log, "source stopped delivering frames, reconnecting", "rtsp_url", s.cam.RTSPURL)
+	sleepBackoff(s.ctx, backoff)
+}
+
+func (s *cameraSession) readFramesIntoChannel(subCtx context.Context, sc *capture.Scanner, frameCh chan []byte) {
+	for {
+		frame, err := sc.ReadFrameCtx(subCtx)
+		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return
+			}
+			if errors.Is(err, io.EOF) {
+				return
+			}
+			metrics.OperationErrors.WithLabelValues("frame_read").Inc()
+			logSourceIssueThrottled(s.lastUpstreamLog, s.log, "frame read (stream interrupted or paused)", "err", err)
+			return
+		}
+		enqueueFrame(frameCh, frame)
+	}
+}
+
+func (s *cameraSession) handleFrame(frame []byte) {
+	n := s.frameNo.Add(1)
+	now := time.Now().UTC()
+	day := now.Format("2006-01-02")
+	ts := now.UnixNano()
+	key := fmt.Sprintf("%s/%s/%s/frame_%d.png", s.prefix, day, s.cam.CameraID, ts)
+
+	pngBytes, err := s3store.JPEGBytesToPNG(frame)
+	if err != nil {
+		metrics.OperationErrors.WithLabelValues("s3_put").Inc()
+		s.log.Error("jpeg to png", "err", err)
+		return
+	}
+	if err := s.store.PutPNG(s.ctx, key, pngBytes); err != nil {
+		metrics.OperationErrors.WithLabelValues("s3_put").Inc()
+		s.log.Error("s3 put", "key", key, "err", err)
+	}
+
+	meta := domain.ProcessMeta{
+		SegmentID:  s.cam.SegmentID,
+		CameraID:   s.cam.CameraID,
+		S3Key:      key,
+		ObservedAt: now.Format(time.RFC3339Nano),
+	}
+	if err := s.mlc.PostProcess(s.ctx, frame, "frame.jpg", meta); err != nil {
+		metrics.OperationErrors.WithLabelValues("ml_process").Inc()
+		logSourceIssueThrottled(s.lastMLLog, s.log, "ml process", "err", err)
+	}
+
+	if n%frameLogEveryN == 0 {
+		s.log.Info("frames", "count", n, "last_key", key)
 	}
 }

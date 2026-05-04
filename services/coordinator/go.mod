@@ -1,8 +1,6 @@
-module traffic-coordinator
+module coordinator
 
 go 1.23.0
-
-require gopkg.in/yaml.v3 v3.0.1
 
 require (
 	github.com/jackc/pgx/v5 v5.7.6

@@ -6,7 +6,7 @@ const (
 	DataClassRoadSegmentVideo = "road_segment_video"
 )
 
-// ValidDataClasses допустимые значения data_class в sources.yaml.
+// ValidDataClasses допустимые значения data_class в таблице sources.
 func ValidDataClasses() []string {
 	return []string{
 		DataClassRoadSegmentVideo,

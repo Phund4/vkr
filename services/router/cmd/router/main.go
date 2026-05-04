@@ -18,7 +18,12 @@ func main() {
 	rootCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	if err := app.Run(rootCtx); err != nil {
+	a, err := app.New(rootCtx)
+	if err != nil {
+		slog.Error("init", "err", err)
+		os.Exit(1)
+	}
+	if err := a.Run(rootCtx); err != nil {
 		if errors.Is(err, app.ErrMissingAWSCredentials) {
 			slog.Error("set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY (e.g. minioadmin)")
 			os.Exit(1)

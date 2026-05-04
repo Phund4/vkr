@@ -7,6 +7,8 @@ import (
 	"os"
 
 	"gopkg.in/yaml.v3"
+
+	"router/internal/core/domain"
 )
 
 // S3 параметры объектного хранилища (MinIO-совместимый endpoint).
@@ -60,14 +62,18 @@ type Metrics struct {
 
 // Camera один RTSP-источник в конфиге.
 type Camera struct {
-	// SegmentID сегмент дороги для метаданных и analytics.
 	SegmentID string `yaml:"segment_id"`
+	CameraID  string `yaml:"camera_id"`
+	RTSPURL   string `yaml:"rtsp_url"`
+}
 
-	// CameraID идентификатор камеры.
-	CameraID string `yaml:"camera_id"`
-
-	// RTSPURL URL потока для ffmpeg.
-	RTSPURL string `yaml:"rtsp_url"`
+// ToDomain маппинг конфигурации YAML в домен.
+func (c Camera) ToDomain() domain.Camera {
+	return domain.Camera{
+		SegmentID: c.SegmentID,
+		CameraID:  c.CameraID,
+		RTSPURL:   c.RTSPURL,
+	}
 }
 
 // Root корневая конфигурация YAML.

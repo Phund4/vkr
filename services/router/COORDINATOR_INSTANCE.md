@@ -1,70 +1,28 @@
 # router и coordinator: новый инстанс
 
-Чтобы процесс **router** участвовал в назначениях, его **идентичность** должна совпадать с одной строкой в **`services/coordinator/ingestion_instances.yaml`** в блоке **`zone_workers`** для нужной зоны.
+Идентичность router (`COORDINATOR_ZONE_ID`, `COORDINATOR_CLUSTER_ID`, `COORDINATOR_INSTANCE_ID`) должна совпадать с записью в PostgreSQL, таблица **`ingestion_instances`** (зона, кластер, инстанс), см. seed и миграции в **`infra/postgres/init/`**.
 
-## Идентичность (должна совпадать с YAML)
+Правило: для каждого процесса router есть строка в **`ingestion_instances`** с тем же `zone_id`, `cluster_id`, `instance_id`. Поле **`url`** — опционально (метрики и т.п.).
 
-| Роль | Переменная окружения | Поле в `zone_workers` |
-|------|----------------------|-------------------------|
-| Зона | `COORDINATOR_ZONE_ID` | ключ зоны, например `zone-a` |
-| Кластер | `COORDINATOR_CLUSTER_ID` | `cluster_id` |
-| Инстанс | `COORDINATOR_INSTANCE_ID` | `instance_id` (уникально в зоне среди ваших процессов) |
+Список отдаёт coordinator: `GET /v1/ingestion_instances?zone_id=zone-a`.
 
-**Правило:** для каждого запущенного процесса router добавьте в `zone_workers.<zone_id>` элемент в **`ingestion_instances.yaml`** (не в `sources.yaml`):
+## Обязательные переменные
 
-```yaml
-- cluster_id: "<тот же COORDINATOR_CLUSTER_ID>"
-  instance_id: "<уникальный COORDINATOR_INSTANCE_ID>"
-  url: "http://127.0.0.1:9091/metrics"   # опционально: куда смотреть (часто /metrics)
-```
+| Переменная | Пример |
+|------------|--------|
+| `COORDINATOR_BASE_URL` | `http://127.0.0.1:8098` |
+| `COORDINATOR_ZONE_ID` | `zone-a` |
+| `COORDINATOR_CLUSTER_ID` | `cluster-1` |
+| `COORDINATOR_INSTANCE_ID` | `ingest-a1` |
 
-Список с `url` также отдаёт coordinator: `GET /v1/ingestion_instances?zone_id=zone-a`.
+## Чеклист
 
-Иначе coordinator не будет считать этот инстанс кандидатом для назначений, heartbeat не будет учитываться при балансировке.
+1. В PostgreSQL добавлена строка в **`ingestion_instances`** для зоны/кластера/инстанса.
+2. Перезапущен coordinator (данные уже в БД).
+3. У процесса router заданы те же `COORDINATOR_*`.
 
-## Обязательные переменные (связь с coordinator)
-
-| Переменная | Пример | Заметка |
-|------------|--------|---------|
-| `COORDINATOR_BASE_URL` | `http://127.0.0.1:8098` | без завершающего `/` |
-| `COORDINATOR_ZONE_ID` | `zone-a` | как в `sources` и в ключе `zone_workers` |
-| `COORDINATOR_CLUSTER_ID` | `cluster-1` | как в YAML |
-| `COORDINATOR_INSTANCE_ID` | `ingest-a1` | у второго процесса — другой, например `ingest-a2` |
-
-Без этих переменных сервис не стартует (нет назначений источников).
-
-## Чеклист: добавили инстанс
-
-1. В **`services/coordinator/ingestion_instances.yaml`** под `zone_workers.<ваша_зона>` добавлена пара `cluster_id` / `instance_id`.
-2. Перезапущен **coordinator** (конфиг читается при старте).
-3. Для нового процесса **router** заданы те же `COORDINATOR_*`, что и в YAML-строке.
-4. Если на **одном хосте** два процесса — разведены **порты** (иначе bind error):
-
-   | Переменная | Назначение |
-   |------------|------------|
-   | `METRICS_LISTEN_ADDR` | Prometheus, по умолчанию `:9091` |
-
-   Пример второго инстанса: `METRICS_LISTEN_ADDR=:9092`.
-
-## Как проверить, что инстанс «виден» логике назначений
-
-1. Запустите coordinator и поднимите процесс с нужными `COORDINATOR_*`.
-2. Убедитесь, что heartbeat принимается (в логах router нет постоянных ошибок отправки heartbeat; при необходимости `GET http://127.0.0.1:8098/v1/workers`).
-3. Запросите назначения для **этого** инстанса (подставьте свои значения):
-
-   ```bash
-   curl -sS "http://127.0.0.1:8098/v1/assignments?zone_id=zone-a&cluster_id=cluster-1&instance_id=ingest-a1&data_class=road_segment_video"
-   ```
-
-   В ответе `items` — только источники, назначенные **данному** `cluster_id` + `instance_id` для указанного **`data_class`** (см. `services/coordinator/README.md`).
-
-## Поведение coordinator
-
-- **Назначения** источников по зоне распределяются между живыми воркерами из `ingestion_instances.yaml` (heartbeat + загрузка). См. `services/coordinator/README.md`.
-- **Идентификаторы** в heartbeat и в GET `/v1/assignments` должны совпадать с теми, что в YAML.
+Два процесса на одном хосте — разные `COORDINATOR_INSTANCE_ID` и порты **`METRICS_LISTEN_ADDR`**.
 
 ## См. также
 
-- Полный список env и режимов: `README.md` в этом каталоге.
-- Файлы coordinator: `sources.yaml` (источники), `ingestion_instances.yaml` (инстансы), `services/coordinator/README.md`.
-- Пример локального `.env`: `.env` (второй инстанс — другой `COORDINATOR_INSTANCE_ID` и порты).
+- `services/coordinator/README.md`
