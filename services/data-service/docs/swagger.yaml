@@ -1,0 +1,121 @@
+basePath: /
+definitions:
+  dto.GetProductResponse:
+    properties:
+      message:
+        type: string
+      status:
+        type: string
+    type: object
+  dto.ProbeResponse:
+    properties:
+      message:
+        type: string
+      status:
+        type: boolean
+    type: object
+  dto.ProductCreation:
+    properties:
+      bad_presets:
+        items:
+          type: integer
+        type: array
+      duration:
+        type: integer
+      end_timestamp:
+        type: string
+      force_trigger:
+        type: boolean
+      group_name:
+        type: string
+      id:
+        type: string
+      preset_conversions:
+        items:
+          type: integer
+        type: array
+      preset_ids:
+        items:
+          type: integer
+        type: array
+      preset_requireds:
+        items:
+          type: boolean
+        type: array
+      preset_scores:
+        items:
+          type: integer
+        type: array
+      presets:
+        items:
+          type: integer
+        type: array
+      product_id:
+        type: integer
+      published_product_presets:
+        type: integer
+      published_product_zero_presets:
+        type: integer
+      timestamp:
+        type: string
+      trace_id:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: 'HTTP API trace-data-service: GET /health и GET /probe/health (liveness),
+    GET /probe/ready (readiness), GET /swagger и /swagger/* (Swagger UI и OpenAPI).'
+  title: Trace Data Service API
+  version: "1.0"
+paths:
+  /api/v1/get_product:
+    get:
+      parameters:
+      - description: Product ID
+        in: query
+        name: product_id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.ProductCreation'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.GetProductResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.GetProductResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.GetProductResponse'
+      summary: Get product creation by product ID
+  /health:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.ProbeResponse'
+      summary: Liveness / health
+  /probe/health:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.ProbeResponse'
+      summary: Health (probe path)
+  /probe/ready:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.ProbeResponse'
+      summary: Readiness probe
+swagger: "2.0"

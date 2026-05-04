@@ -1,0 +1,60 @@
+# Prometheus в Docker: цели — DNS-имена сервисов в сети traffic-its.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: data_ingestion
+    static_configs:
+      - targets: ["data-ingestion:9091"]
+  - job_name: ml_gateway
+    static_configs:
+      - targets: ["ml-gateway:8092"]
+  - job_name: analytics
+    static_configs:
+      - targets: ["analytics:8093"]
+  - job_name: map_portal
+    static_configs:
+      - targets: ["map-portal:8096"]
+  - job_name: ml_serving
+    static_configs:
+      - targets: ["ml-serving:8000"]
+  - job_name: coordinator
+    static_configs:
+      - targets: ["coordinator:8098"]
+
+  # Инфраструктура (экспортёры Prometheus)
+  - job_name: elasticsearch
+    static_configs:
+      - targets: ["elasticsearch-exporter:9114"]
+  - job_name: postgres
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+  - job_name: kafka
+    static_configs:
+      - targets: ["kafka-exporter:9308"]
+  - job_name: clickhouse
+    static_configs:
+      - targets: ["clickhouse-exporter:9116"]
+
+  - job_name: cadvisor
+    static_configs:
+      - targets: ["cadvisor:8080"]
+
+  - job_name: blackbox_http_health
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - http://coordinator:8098/health
+          - http://ml-serving:8000/health
+        labels:
+          service: coordinator_ml
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115

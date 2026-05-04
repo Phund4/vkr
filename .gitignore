@@ -1,0 +1,15 @@
+# Секреты и локальные настройки (все каталоги)
+.env
+**/.env
+
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.DS_Store
+ml-experiments/data/
+ml-experiments/artifacts/
+ml-experiments/.mplconfig/
+.data/
+*.onnx
+!**/.gitkeep
