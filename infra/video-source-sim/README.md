@@ -1,19 +1,5 @@
-# video-source-sim
+# video-source-sim (устарело)
 
-Сервис-имитатор источников камер. Берёт `.mp4` из каталога **`../.data/videos`** (в compose монтируется как **`/videos`**) и публикует **четыре** RTSP-потока в MediaMTX:
+Заменён на **[`../rtsp-generator`](../rtsp-generator)** — RTSP Studio с веб-UI и HTTP API для динамического запуска потоков.
 
-- `cam-01` … `cam-04`
-
-Источник для `cam-NN` выбирается по кругу из отсортированного списка `*.mp4` (при четырёх файлах на диске каждому потоку соответствует свой файл).
-
-Параметры через env:
-
-- `RTSP_PUBLISH_BASE` (по умолчанию `rtsp://mediamtx:8554`)
-- `SIM_VIDEO_DIR` (по умолчанию `/videos`)
-- `STREAM_PREFIX` (по умолчанию `cam-` → имена `cam-01` …)
-- `NUM_STREAMS` (по умолчанию `4`)
-- `SIM_FPS`, `SIM_SIZE` — только для синтетического fallback
-
-Если видеофайлы не найдены, включается fallback на два синтетических потока `cam-east-01` / `cam-west-02`.
-
-Используется вместе с `infra/docker-compose.yml` (профиль **`ingest`**).
+Старый shell-скрипт в этом каталоге больше не используется в `docker-compose.yml`.

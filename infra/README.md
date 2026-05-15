@@ -19,25 +19,25 @@ docker compose down
 Поднять только RTSP и публикацию тестовых потоков:
 
 ```bash
-docker compose --profile ingest up -d mediamtx video-source-sim
+docker compose --profile ingest up -d mediamtx rtsp-generator
 ```
 
 **Остановить** эти контейнеры, не трогая остальной стек (Kafka, ClickHouse и т.д.):
 
 ```bash
-docker compose --profile ingest stop mediamtx video-source-sim
+docker compose --profile ingest stop mediamtx rtsp-generator
 ```
 
 Снова запустить:
 
 ```bash
-docker compose --profile ingest start mediamtx video-source-sim
+docker compose --profile ingest start mediamtx rtsp-generator
 ```
 
 Удалить контейнеры профиля `ingest` (данные в томах основного стека не затрагиваются):
 
 ```bash
-docker compose --profile ingest rm -sf mediamtx video-source-sim
+docker compose --profile ingest rm -sf mediamtx rtsp-generator
 ```
 
 Данные **PostgreSQL**, **ClickHouse**, **Kafka**, **Elasticsearch**, **MinIO**, **Prometheus** (TSDB) и **Grafana** (в том числе дашборды и настройки, созданные в UI) хранятся в именованных томах и переживают перезапуск контейнеров. Конфиг Prometheus — [`prometheus/prometheus.yml`](prometheus/prometheus.yml); после правок: `docker compose restart prometheus` или lifecycle reload.
@@ -68,16 +68,16 @@ docker compose --profile ingest rm -sf mediamtx video-source-sim
 
 - **Prometheus** — http://localhost:9090. Конфиг [`prometheus/prometheus.yml`](prometheus/prometheus.yml): scrape **`/metrics`** у прикладных сервисов в сети `traffic-its` (`router`, `analytics`, `ml-serving`, `coordinator`), экспортёры **Elasticsearch**, **PostgreSQL**, **Kafka**, **ClickHouse**, **`cadvisor`**, **`blackbox-exporter`** (HTTP health `coordinator` / `ml-serving`). Часть таргетов может быть DOWN, если сервис не запущен.
 
-- **Grafana** — http://localhost:3000, логин по умолчанию **`admin` / `admin`**. Провижининг из [`grafana/provisioning/`](grafana/provisioning/) (папка дашбордов **Traffic**); созданные вручную дашборды и источники сохраняются в томе **`grafana-data`**. В дашборде **`Сервисы`** (uid `kafka-services`): Kafka ingest, ошибки сервисов, `UP/DOWN` по `up{job=…}` для приложений, CPU/RAM контейнеров по имени контейнера (`name` в cAdvisor; лейблы Compose в метриках часто недоступны, в т.ч. на Docker Desktop).
+- **Grafana** — http://localhost:3000, логин по умолчанию **`admin` / `admin`**. Провижининг из [`grafana/provisioning/`](grafana/provisioning/) (папка дашбордов **Traffic**); том **`grafana-data`**. Дашборды: **`Services`** (`traffic-services`) — конвейер, Kafka, **единая панель ошибок** (метка `source`), data-service RPS, cAdvisor по `container_label_com_docker_compose_service`; **`Results (данные конвейера)`** (`traffic-results`) — загруженность, инциденты, запись в CH/Kafka.
 
-- **MediaMTX** (профиль `ingest`) — `rtsp://localhost:8554`. Запуск: `docker compose --profile ingest up -d --build mediamtx video-source-sim`.
+- **MediaMTX** (профиль `ingest`) — `rtsp://localhost:8554`. Запуск: `docker compose --profile ingest up -d --build mediamtx rtsp-generator`.
 
-- **video-source-sim** (профиль `ingest`) — читает `../.data/videos/*.mp4`; при отсутствии файлов — синтетические потоки.
+- **rtsp-generator** (RTSP Studio) — веб-UI **http://localhost:8096**, API для запуска/остановки RTSP-потоков из `../.data/videos/*.mp4` или синтетики; не связан с coordinator (см. [`rtsp-generator/README.md`](rtsp-generator/README.md)).
 
 Профиль **`ingest`** (MediaMTX + видео-симулятор). Пример:
 
 ```bash
-docker compose --profile ingest up -d mediamtx video-source-sim
+docker compose --profile ingest up -d mediamtx rtsp-generator
 ```
 
 ## Приложения вне compose
