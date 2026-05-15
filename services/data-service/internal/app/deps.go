@@ -23,7 +23,7 @@ const (
 type deps struct {
 	log      *zerolog.Logger
 	handlers *handlers
-	services *services.ProductService
+	services *services.RoadDataService
 	metrics  *metrics.Server
 }
 
@@ -38,7 +38,6 @@ func (app *App) initConfigAndDependencies(ctx context.Context) {
 	}
 	app.Cfg = cfg
 
-	// Настройка логгера
 	zerolog.TimeFieldFormat = time.RFC3339
 	logger := zerolog.New(os.Stderr).With().Timestamp().Logger()
 
@@ -57,7 +56,7 @@ func (app *App) initConfigAndDependencies(ctx context.Context) {
 		panic(err)
 	}
 
-	service := services.NewProductService(clickhouseRepo)
+	service := services.NewRoadDataService(clickhouseRepo)
 
 	app.deps = deps{
 		log:      &logger,

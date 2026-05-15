@@ -15,41 +15,91 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/api/v1/get_product": {
+        "/api/v1/road_congestion": {
             "get": {
-                "summary": "Get product creation by product ID",
+                "summary": "Список записей road_congestion",
                 "parameters": [
                     {
+                        "type": "string",
+                        "description": "Фильтр по segment_id",
+                        "name": "segment_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Фильтр по camera_id",
+                        "name": "camera_id",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
-                        "description": "Product ID",
-                        "name": "product_id",
-                        "in": "query",
-                        "required": true
+                        "description": "Лимит строк (по умолчанию 100, макс. 500)",
+                        "name": "limit",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/dto.ProductCreation"
+                            "$ref": "#/definitions/data-service_internal_adapters_http_dto.RoadCongestionListResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/dto.GetProductResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/dto.GetProductResponse"
+                            "$ref": "#/definitions/data-service_internal_adapters_http_dto.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/dto.GetProductResponse"
+                            "$ref": "#/definitions/data-service_internal_adapters_http_dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/road_incidents": {
+            "get": {
+                "summary": "Список записей road_incidents",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Фильтр по segment_id",
+                        "name": "segment_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Фильтр по camera_id",
+                        "name": "camera_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Лимит строк (по умолчанию 100, макс. 500)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/data-service_internal_adapters_http_dto.RoadIncidentsListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/data-service_internal_adapters_http_dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/data-service_internal_adapters_http_dto.ErrorResponse"
                         }
                     }
                 }
@@ -62,7 +112,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/dto.ProbeResponse"
+                            "$ref": "#/definitions/data-service_internal_adapters_http_dto.ProbeResponse"
                         }
                     }
                 }
@@ -75,7 +125,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/dto.ProbeResponse"
+                            "$ref": "#/definitions/data-service_internal_adapters_http_dto.ProbeResponse"
                         }
                     }
                 }
@@ -88,7 +138,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/dto.ProbeResponse"
+                            "$ref": "#/definitions/data-service_internal_adapters_http_dto.ProbeResponse"
                         }
                     }
                 }
@@ -96,7 +146,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "dto.GetProductResponse": {
+        "data-service_internal_adapters_http_dto.ErrorResponse": {
             "type": "object",
             "properties": {
                 "message": {
@@ -107,7 +157,7 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.ProbeResponse": {
+        "data-service_internal_adapters_http_dto.ProbeResponse": {
             "type": "object",
             "properties": {
                 "message": {
@@ -118,74 +168,74 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.ProductCreation": {
+        "data-service_internal_adapters_http_dto.RoadCongestionItem": {
             "type": "object",
             "properties": {
-                "bad_presets": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "duration": {
-                    "type": "integer"
-                },
-                "end_timestamp": {
+                "camera_id": {
                     "type": "string"
                 },
-                "force_trigger": {
-                    "type": "boolean"
+                "congestion_score": {
+                    "type": "number"
                 },
-                "group_name": {
+                "observed_at": {
                     "type": "string"
                 },
-                "id": {
+                "raw_ml": {
                     "type": "string"
                 },
-                "preset_conversions": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "preset_ids": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "preset_requireds": {
-                    "type": "array",
-                    "items": {
-                        "type": "boolean"
-                    }
-                },
-                "preset_scores": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "presets": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
-                "product_id": {
-                    "type": "integer"
-                },
-                "published_product_presets": {
-                    "type": "integer"
-                },
-                "published_product_zero_presets": {
-                    "type": "integer"
-                },
-                "timestamp": {
+                "s3_key": {
                     "type": "string"
                 },
-                "trace_id": {
+                "segment_id": {
                     "type": "string"
+                }
+            }
+        },
+        "data-service_internal_adapters_http_dto.RoadCongestionListResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/data-service_internal_adapters_http_dto.RoadCongestionItem"
+                    }
+                }
+            }
+        },
+        "data-service_internal_adapters_http_dto.RoadIncidentItem": {
+            "type": "object",
+            "properties": {
+                "camera_id": {
+                    "type": "string"
+                },
+                "crash_probability": {
+                    "type": "number"
+                },
+                "incident_label": {
+                    "type": "string"
+                },
+                "observed_at": {
+                    "type": "string"
+                },
+                "raw_ml": {
+                    "type": "string"
+                },
+                "s3_key": {
+                    "type": "string"
+                },
+                "segment_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "data-service_internal_adapters_http_dto.RoadIncidentsListResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/data-service_internal_adapters_http_dto.RoadIncidentItem"
+                    }
                 }
             }
         }
@@ -198,8 +248,8 @@ var SwaggerInfo = &swag.Spec{
 	Host:             "",
 	BasePath:         "/",
 	Schemes:          []string{},
-	Title:            "Trace Data Service API",
-	Description:      "HTTP API trace-data-service: GET /health и GET /probe/health (liveness), GET /probe/ready (readiness), GET /swagger и /swagger/* (Swagger UI и OpenAPI).",
+	Title:            "ITS Data Service API",
+	Description:      "HTTP API: health/probe, чтение ClickHouse road_incidents и road_congestion, Swagger.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

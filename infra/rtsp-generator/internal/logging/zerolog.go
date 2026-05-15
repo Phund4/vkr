@@ -1,0 +1,52 @@
+// Package logging — zerolog (JSON в stderr по умолчанию), те же env, что у остальных сервисов.
+package logging
+
+import (
+	"io"
+	"os"
+	"strings"
+	"time"
+
+	zlog "github.com/rs/zerolog/log"
+
+	"github.com/rs/zerolog"
+)
+
+func NewZerolog(defaultService string) zerolog.Logger {
+	if s := strings.TrimSpace(os.Getenv("SERVICE_NAME")); s != "" {
+		defaultService = s
+	}
+	zerolog.TimeFieldFormat = time.RFC3339Nano
+
+	var out io.Writer = os.Stderr
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("LOG_FORMAT")), "text") {
+		out = zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339}
+	}
+
+	zl := parseLevel(os.Getenv("LOG_LEVEL"))
+	return zerolog.New(out).
+		Level(zl).
+		With().
+		Timestamp().
+		Str("service", defaultService).
+		Logger()
+}
+
+func InitGlobal(defaultService string) {
+	zlog.Logger = NewZerolog(defaultService)
+}
+
+func parseLevel(s string) zerolog.Level {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "debug":
+		return zerolog.DebugLevel
+	case "warn", "warning":
+		return zerolog.WarnLevel
+	case "error":
+		return zerolog.ErrorLevel
+	case "fatal":
+		return zerolog.FatalLevel
+	default:
+		return zerolog.InfoLevel
+	}
+}

@@ -4,11 +4,11 @@ resolve-type-alias: false
 disable-version-string: true
 
 packages:
-  wbxgitlab.wb.ru/wbx-search/search-quality-team/tracing/trace-data-service/internal/adapters/http/handlers:
+  data-service/internal/adapters/http/handlers:
     config:
       all: false
       dir: mocks
       outpkg: mocks
       filename: "{{.InterfaceName}}.go"
     interfaces:
-      ProductGetter: {}
+      RoadDataGetter: {}

@@ -1,0 +1,1087 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "description": "Сервисы конвейера, Kafka, единая панель ошибок, cAdvisor (labels compose), data-service.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [
+    {
+      "icon": "dashboard",
+      "includeVars": true,
+      "keepTime": true,
+      "title": "Results (данные конвейера)",
+      "type": "link",
+      "url": "/d/traffic-results?${__url_time_range}"
+    }
+  ],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "title": "Доступность scrape (job × instance)",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "type": "timeseries",
+      "title": "up{job, instance}",
+      "id": 2,
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "lineWidth": 1,
+            "showPoints": "never"
+          },
+          "max": 1,
+          "min": 0,
+          "unit": "none"
+        }
+      },
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        }
+      },
+      "targets": [
+        {
+          "expr": "up{job=~\"$scrape_job\",instance=~\"$instance\"}",
+          "legendFormat": "{{job}} @ {{instance}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 8
+      },
+      "id": 3,
+      "title": "Конвейер: e2e и пропускная способность",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "type": "timeseries",
+      "title": "E2E router → ClickHouse (p50 / p95)",
+      "id": 4,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "lineWidth": 1
+          },
+          "unit": "s"
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(traffic_pipeline_e2e_seconds_bucket{instance=~\"$instance\"}[5m])) by (le, instance))",
+          "legendFormat": "p50 {{instance}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(traffic_pipeline_e2e_seconds_bucket{instance=~\"$instance\"}[5m])) by (le, instance))",
+          "legendFormat": "p95 {{instance}}",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "type": "timeseries",
+      "title": "Поток данных (байт/с по этапам)",
+      "id": 5,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "Bps",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "lineWidth": 1
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (instance) (rate(router_bytes_sent_ml_total{instance=~\"$instance\"}[5m]))",
+          "legendFormat": "router→ML JPEG {{instance}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (instance) (rate(router_bytes_uploaded_s3_total{instance=~\"$instance\"}[5m]))",
+          "legendFormat": "router→S3 PNG {{instance}}",
+          "refId": "B"
+        },
+        {
+          "expr": "sum by (instance) (rate(analytics_ingest_body_bytes_total{instance=~\"$instance\"}[5m]))",
+          "legendFormat": "analytics ingest body {{instance}}",
+          "refId": "C"
+        },
+        {
+          "expr": "sum by (instance) (rate(pusher_kafka_message_bytes_total{instance=~\"$instance\"}[5m]))",
+          "legendFormat": "pusher Kafka in {{instance}}",
+          "refId": "D"
+        },
+        {
+          "expr": "sum by (instance) (rate(ml_request_image_bytes_total{instance=~\"$instance\"}[5m]))",
+          "legendFormat": "ML image in {{instance}}",
+          "refId": "E"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 17
+      },
+      "id": 6,
+      "title": "Kafka (analytics consumer)",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "type": "timeseries",
+      "title": "Analytics: сообщения из Kafka (топик × реплика)",
+      "id": 7,
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "lineWidth": 1,
+            "showPoints": "never"
+          },
+          "unit": "ops"
+        }
+      },
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (topic, instance) (rate(analytics_kafka_ingest_processed_total{instance=~\"$instance\"}[5m]))",
+          "legendFormat": "{{topic}} @ {{instance}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      },
+      "id": 8,
+      "title": "Ошибки приложений (единая панель)",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "type": "timeseries",
+      "description": "Метка source: router, analytics_ingest, analytics_kafka, pusher_*, ml. Сузить: в легенде отключите лишние серии.",
+      "title": "Ошибки конвейера (все источники, одна панель)",
+      "id": 9,
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 27
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "lineWidth": 1,
+            "showPoints": "never"
+          },
+          "unit": "ops"
+        }
+      },
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        }
+      },
+      "targets": [
+        {
+          "expr": "(sum by (source, stage) (label_replace(sum by (instance, stage) (rate(router_operation_errors_total{instance=~\"$instance\"}[5m])), \"source\", \"router\", \"instance\", \".+\")) or sum by (source, stage) (label_replace(sum by (instance, stage) (rate(analytics_ingest_errors_total{instance=~\"$instance\"}[5m])), \"source\", \"analytics_ingest\", \"instance\", \".+\")) or sum by (source, stage) (label_replace(sum by (instance, stage) (rate(analytics_kafka_publish_errors_total{instance=~\"$instance\"}[5m])), \"source\", \"analytics_kafka\", \"instance\", \".+\")) or sum by (source, stage) (label_replace(sum by (instance, stage) (rate(pusher_process_errors_total{instance=~\"$instance\"}[5m])), \"source\", \"pusher_process\", \"instance\", \".+\")) or sum by (source, stage) (label_replace(sum by (instance, stage) (rate(pusher_kafka_consume_errors_total{instance=~\"$instance\"}[5m])), \"source\", \"pusher_kafka\", \"instance\", \".+\")) or sum by (source, stage) (label_replace(label_replace(sum by (instance, op) (rate(pusher_clickhouse_errors_total{instance=~\"$instance\"}[5m])), \"stage\", \"$1\", \"op\", \"(.+)\"), \"source\", \"pusher_ch\", \"stage\", \".+\")) or sum by (source, stage) (label_replace(label_replace(sum by (instance, result) (rate(ml_process_requests_total{instance=~\"$instance\",result!=\"success\"}[5m])), \"stage\", \"$1\", \"result\", \"(.+)\"), \"source\", \"ml\", \"stage\", \".+\")))",
+          "legendFormat": "{{source}} {{stage}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 37
+      },
+      "id": 10,
+      "title": "Router",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "type": "timeseries",
+      "title": "Кадры / ML (RPS по исходу)",
+      "id": 11,
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 38
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "lineWidth": 1
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (instance, outcome) (rate(router_frames_processed_total{instance=~\"$instance\"}[5m]))",
+          "legendFormat": "{{instance}} {{outcome}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "type": "timeseries",
+      "title": "Router: латентность кадра и вызова ML (p95)",
+      "id": 12,
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 45
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "lineWidth": 1
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(router_frame_handle_duration_seconds_bucket{instance=~\"$instance\"}[5m])) by (le, instance))",
+          "legendFormat": "handle p95 {{instance}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(router_ml_request_duration_seconds_bucket{instance=~\"$instance\"}[5m])) by (le, instance))",
+          "legendFormat": "ML HTTP p95 {{instance}}",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 52
+      },
+      "id": 13,
+      "title": "Analytics",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "type": "timeseries",
+      "title": "Ingest RPS по коду ответа",
+      "id": 14,
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 53
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (instance, code) (rate(analytics_ingest_requests_total{instance=~\"$instance\"}[5m]))",
+          "legendFormat": "{{instance}} HTTP {{code}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "type": "timeseries",
+      "title": "Analytics: длительность ingest и публикации в Kafka (p95)",
+      "id": 15,
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 53
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(analytics_ingest_duration_seconds_bucket{instance=~\"$instance\"}[5m])) by (le, instance))",
+          "legendFormat": "ingest p95 {{instance}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(analytics_kafka_publish_duration_seconds_bucket{instance=~\"$instance\"}[5m])) by (le, instance))",
+          "legendFormat": "Kafka publish p95 {{instance}}",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 60
+      },
+      "id": 16,
+      "title": "ML serving",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "type": "timeseries",
+      "title": "ML: RPS по результату",
+      "id": 17,
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 61
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (instance, result) (rate(ml_process_requests_total{instance=~\"$instance\"}[5m]))",
+          "legendFormat": "{{instance}} {{result}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "type": "timeseries",
+      "title": "ML: длительность /v1/process (p95)",
+      "id": 18,
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 61
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(ml_process_duration_seconds_bucket{instance=~\"$instance\"}[5m])) by (le, instance))",
+          "legendFormat": "p95 {{instance}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 68
+      },
+      "id": 19,
+      "title": "Pusher",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "type": "timeseries",
+      "title": "Сообщения persist (успех)",
+      "id": 20,
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 69
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (instance, topic) (rate(pusher_kafka_messages_processed_total{instance=~\"$instance\"}[5m]))",
+          "legendFormat": "{{instance}} {{topic}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "type": "timeseries",
+      "title": "Pusher: время обработки сообщения (p95)",
+      "id": 21,
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 69
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(pusher_process_duration_seconds_bucket{instance=~\"$instance\"}[5m])) by (le, instance))",
+          "legendFormat": "process p95 {{instance}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 76
+      },
+      "id": 22,
+      "title": "Data-service (API)",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "type": "timeseries",
+      "title": "Data-service: HTTP RPS (method × path × code)",
+      "id": 23,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 77
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (method, path, code) (rate(data_service_api_http_requests_total{instance=~\"$ds_instance\"}[5m]))",
+          "legendFormat": "{{method}} {{path}} {{code}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "type": "timeseries",
+      "title": "Data-service: длительность HTTP (p95)",
+      "id": 24,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 77
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(data_service_api_http_request_duration_seconds_bucket{instance=~\"$ds_instance\"}[5m])) by (le, method, path))",
+          "legendFormat": "{{method}} {{path}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 85
+      },
+      "id": 25,
+      "title": "Сводка UP",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "type": "stat",
+      "id": 26,
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 86
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "red",
+                  "index": 0,
+                  "text": "DOWN"
+                }
+              },
+              "type": "value"
+            },
+            {
+              "options": {
+                "1": {
+                  "color": "green",
+                  "index": 1,
+                  "text": "UP"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "up{job=~\"$scrape_job\",instance=~\"$instance\"}",
+          "legendFormat": "{{job}} @ {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Последнее значение up"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 90
+      },
+      "id": 27,
+      "title": "Контейнеры (cAdvisor, Docker Compose)",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "type": "timeseries",
+      "title": "CPU по compose-сервису (ядра)",
+      "id": 28,
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 91
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "lineWidth": 1,
+            "showPoints": "never"
+          },
+          "unit": "cores"
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (container_label_com_docker_compose_service) (rate(container_cpu_usage_seconds_total{container_label_com_docker_compose_service=~\"$container\",id!=\"/\"}[5m]))",
+          "legendFormat": "{{container_label_com_docker_compose_service}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "type": "timeseries",
+      "title": "Memory working set по compose-сервису",
+      "id": 29,
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 100
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "lineWidth": 1,
+            "showPoints": "never"
+          },
+          "unit": "bytes"
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (container_label_com_docker_compose_service) (container_memory_working_set_bytes{container_label_com_docker_compose_service=~\"$container\",id!=\"/\"})",
+          "legendFormat": "{{container_label_com_docker_compose_service}}",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": [
+    "traffic",
+    "services"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "definition": "label_values(up{job=~\"router|analytics|pusher|ml_serving|coordinator|data_service|kafka|clickhouse|elasticsearch|postgres|cadvisor\"}, job)",
+        "hide": 0,
+        "includeAll": true,
+        "allValue": "router|analytics|pusher|ml_serving|coordinator|data_service|kafka|clickhouse|elasticsearch|postgres|cadvisor",
+        "label": "Job",
+        "multi": true,
+        "name": "scrape_job",
+        "options": [],
+        "query": "label_values(up{job=~\"router|analytics|pusher|ml_serving|coordinator|data_service|kafka|clickhouse|elasticsearch|postgres|cadvisor\"}, job)",
+        "refresh": 1,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "definition": "label_values(up{job=~\"$scrape_job\"}, instance)",
+        "hide": 0,
+        "includeAll": true,
+        "allValue": ".*",
+        "label": "Instance",
+        "multi": true,
+        "name": "instance",
+        "options": [],
+        "query": "label_values(up{job=~\"$scrape_job\"}, instance)",
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "definition": "label_values(up{job=\"data_service\"}, instance)",
+        "hide": 0,
+        "includeAll": true,
+        "allValue": ".*",
+        "label": "Data-service instance",
+        "multi": true,
+        "name": "ds_instance",
+        "options": [],
+        "query": "label_values(up{job=\"data_service\"}, instance)",
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": ".*",
+          "value": ".*"
+        },
+        "hide": 0,
+        "label": "Compose service (regex)",
+        "description": "Имя сервиса из docker-compose для cAdvisor (router, analytics, …).",
+        "name": "container",
+        "options": [
+          {
+            "selected": true,
+            "text": ".*",
+            "value": ".*"
+          }
+        ],
+        "query": ".*",
+        "type": "textbox"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "Services",
+  "uid": "traffic-services",
+  "version": 1
+}

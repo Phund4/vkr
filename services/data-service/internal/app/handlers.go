@@ -7,6 +7,7 @@ import (
 	echoSwagger "github.com/swaggo/echo-swagger"
 
 	httpHandler "data-service/internal/adapters/http/handlers"
+	"data-service/internal/core/services"
 )
 
 const (
@@ -19,25 +20,25 @@ const (
 
 	ApiV1Path = "/api/v1"
 
-	GetProductPath = "/get_product"
+	RoadIncidentsPath  = "/road_incidents"
+	RoadCongestionPath = "/road_congestion"
 )
 
 type handlers struct {
-	probe   *httpHandler.ProbeHandler
-	product *httpHandler.ProductHandler
+	probe *httpHandler.ProbeHandler
+	road  *httpHandler.RoadDataHandler
 }
 
-// GetHandlers создает набор HTTP-обработчиков приложения.
-func GetHandlers(service httpHandler.ProductGetter) *handlers {
+// GetHandlers создаёт набор HTTP-обработчиков приложения.
+func GetHandlers(svc *services.RoadDataService) *handlers {
 	return &handlers{
-		probe:   httpHandler.NewProbeHandler(),
-		product: httpHandler.NewProductHandler(service),
+		probe: httpHandler.NewProbeHandler(),
+		road:  httpHandler.NewRoadDataHandler(svc),
 	}
 }
 
 // initHandlers регистрирует HTTP-роуты и swagger endpoints.
 func (app *App) initHandlers() {
-	// Технические ручки
 	app.httpServer.GET(SwaggerPathPrefix, func(c echo.Context) error {
 		return c.Redirect(http.StatusMovedPermanently, SwaggerIndexHTML)
 	})
@@ -47,5 +48,6 @@ func (app *App) initHandlers() {
 	app.httpServer.GET(ProbeReadyPath, app.deps.handlers.probe.Ready)
 
 	apiV1 := app.httpServer.Group(ApiV1Path)
-	apiV1.GET(GetProductPath, app.deps.handlers.product.GetProduct)
+	apiV1.GET(RoadIncidentsPath, app.deps.handlers.road.ListRoadIncidents)
+	apiV1.GET(RoadCongestionPath, app.deps.handlers.road.ListRoadCongestion)
 }

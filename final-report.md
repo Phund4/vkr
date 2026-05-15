@@ -4,7 +4,7 @@
 **Автор**: Попов Александр Иванович  
 **Группа**: БВТ2203
 
-Распределённая ИТС: приём видео и телеметрии, ML-инференс, аналитика в ClickHouse, карта, мониторинг.
+Распределённая ИТС: приём видео, ML-инференс, аналитика в ClickHouse, мониторинг.
 
 ---
 
@@ -12,15 +12,15 @@
 
 Реализован отдельный микросервис **`services/ml-serving`** (FastAPI, Uvicorn):
 
-- **`POST /v1/process`** — приём кадра (multipart), инференс моделей **ДТП (классификация)** и **загруженности (регрессия)**; при настроенном **`ML_GATEWAY_URL`** — передача результата в шлюз (интеграция с Kafka-пайплайном), иначе — JSON-ответ клиенту.
+- **`POST /v1/process`** — приём кадра (multipart), инференс моделей **ДТП (классификация)** и **загруженности (регрессия)**; при настроенном **`ANALYTICS_INGEST_URL`** — передача результата в **analytics** (`POST /v1/ingest`), иначе — только JSON-ответ клиенту.
 - **`GET /health`** — статус загрузки моделей, пути к чекпойнтам, флаг использования **`winners.json`**.
-- Логика инференса вынесена в **`inference_core.py`** (совместимость с офлайн-пайплайном **`ml-experiments`**).
+- Логика инференса вынесена в **`inference_core.py`**.
 
-Выбор финальной модели после этапа офлайн-экспериментов (`ml-experiments`):
+Выбор весов в рантайме:
 
-- явные переменные **`ACCIDENT_CKPT`**, **`CONGESTION_CKPT`**, либо автоматическое чтение из **`.data/ml-experiments/winners.json`** (пайплайн **`ml-experiments/scripts/run_pipeline.sh`**);
+- явные переменные **`ACCIDENT_CKPT`**, **`CONGESTION_CKPT`**, либо автоматическое чтение из **`models/winners.json`** внутри **`services/ml-serving`** (каталоги **`models/`**, **`artifacts/`** в образе).
 
-Упаковка для рантайма: **`services/ml-serving/Dockerfile`**, переменная **`REPO_ROOT`** для путей к артефактам внутри контейнера.
+Упаковка для рантайма: **`services/ml-serving/Dockerfile`**, переменная **`SERVING_ROOT`** для путей к артефактам внутри контейнера.
 
 ---
 
@@ -28,14 +28,13 @@
 
 **Цепочка данных:**
 
-1. Источники: `video-source-sim` (RTSP через MediaMTX, профиль `ingest`), `bus-telemetry-generator` (gRPC, профиль `telemetry`).
-2. **data-ingestion** — RTSP, S3 (MinIO), вызовы **ml-serving**, телеметрия в Kafka.
+1. Источники: `video-source-sim` (RTSP через MediaMTX, профиль `ingest`).
+2. **router** — RTSP, S3 (MinIO), вызовы **ml-serving**.
 3. **coordinator** — назначение источников инстансам, состояние в **PostgreSQL**.
-4. **ml-gateway** — приём событий от ML, продюс в Kafka (topic видео).
-5. **analytics** — Kafka consumer, запись в **ClickHouse**, бизнес-метрики Prometheus.
-6. **map-portal** — gRPC к analytics, UI/API карты.
+4. **ml-serving** — инференс; при необходимости прямой **POST** в **analytics** и/или отдельный продюсер в Kafka (топик видео), если он включён в контуре.
+5. **analytics** — HTTP ingest и/или Kafka consumer, запись в **ClickHouse**, бизнес-метрики Prometheus.
 
-**Документация по архитектуре:** полная логическая схема (включая coordinator/data-ingestion), протоколы и мониторинг — **`readme.md`** (Mermaid); краткий запуск, управление compose и «куда смотреть» — **`README.md`**. Высокоуровневое описание — **`high-level-design.md`**. При расхождениях итоговой системы с этим планом правки отражаются в этих файлах и в **`infra/`**.
+**Документация по архитектуре:** краткий запуск и мониторинг — **`infra/README.md`** и README сервисов в **`services/`**. Высокоуровневое описание — **`high-level-design.md`**. При расхождениях итоговой системы с этим планом правки отражаются в этих файлах и в **`infra/`**.
 
 ---
 
@@ -43,10 +42,10 @@
 
 | Механизм | Реализация |
 |----------|------------|
-| Логирование запросов и событий | Логирование в приложениях (например, **`ml-serving`**, предупреждения при отсутствии **`ML_GATEWAY_URL`**); у сервисов на Go — логи в stdout контейнеров. |
+| Логирование запросов и событий | Логирование в приложениях (например, **`ml-serving`**, предупреждения при отсутствии **`ANALYTICS_INGEST_URL`**); у сервисов на Go — логи в stdout контейнеров. |
 | Метрики доступности | **`GET /health`** у сервисов; **blackbox-exporter** опрашивает HTTP health **coordinator** и **ml-serving** (**`infra/prometheus/prometheus.yml`**). |
 | Нагрузка на систему | **cAdvisor** — CPU/RAM контейнеров; в Grafana дашборд **«Сервисы»** — ряды по имени контейнера (`name`), т.к. лейблы Compose в метриках cAdvisor на Docker Desktop часто недоступны. |
-| Экспорт метрик | **`/metrics`** (формат Prometheus): **data-ingestion**, **ml-gateway**, **analytics**, **map-portal**, **coordinator**, **ml-serving**; сбор — **`infra/prometheus/prometheus.yml`**, TSDB в томе, визуализация — **Grafana** (`infra/grafana/provisioning/`). |
+| Экспорт метрик | **`/metrics`** (формат Prometheus): **router**, **analytics**, **coordinator**, **ml-serving**; сбор — **`infra/prometheus/prometheus.yml`**, TSDB в томе, визуализация — **Grafana** (`infra/grafana/provisioning/`). |
 
 Дашборды по Kafka, трафику и аналитике — JSON в **`infra/grafana/provisioning/dashboards/json/`**.
 
@@ -59,15 +58,12 @@
 | Компонент | Путь |
 |-----------|------|
 | coordinator | `services/coordinator/Dockerfile` |
-| data-ingestion | `services/data-ingestion/Dockerfile` |
+| router | `services/router/Dockerfile` |
 | ml-serving | `services/ml-serving/Dockerfile` |
-| ml-gateway | `services/ml-gateway/Dockerfile` |
 | analytics | `services/analytics/Dockerfile` |
-| map-portal | `services/map-portal/Dockerfile` |
 | video-source-sim | `infra/video-source-sim/Dockerfile` |
-| bus-telemetry-generator | `data-generators/telemetry-data/Dockerfile` |
 
-**Оркестрация:** единый **`infra/docker-compose.yml`**: сеть **`traffic-its`**, именованные тома (PostgreSQL, Kafka KRaft, ClickHouse, MinIO, Prometheus, Grafana и т.д.), переменные окружения, healthcheck'и, init топиков Kafka, профили **`ingest`** и **`telemetry`** по необходимости.
+**Оркестрация:** единый **`infra/docker-compose.yml`**: сеть **`traffic-its`**, именованные тома (PostgreSQL, Kafka KRaft, ClickHouse, MinIO, Prometheus, Grafana и т.д.), переменные окружения, healthcheck'и, init топиков Kafka, профиль **`ingest`** по необходимости.
 
 Запуск стека из каталога `infra`:
 
@@ -85,8 +81,8 @@ docker compose up --build -d
 
 **Тестовые данные:**
 
-- видео для пайплайна: **`.data/videos/*.mp4`** (см. **`ml-experiments/README.md`**);
-- полный прогон экспериментов — структуры в **`ml-experiments/data/`** (валидация/тест ДТП, ground truth для заторов и т.д., по README).
+- видео для пайплайна: **`.data/videos/*.mp4`** (см. **`infra/README.md`**, профиль **`ingest`**);
+- веса моделей для демонстрации — положить **`best.pt`** в пути из **`services/ml-serving/models/winners.json`** (см. **`services/ml-serving/models/README.md`**).
 
 **Демонстрация:** запуск `cd infra && docker compose up --build -d`; проверка ML — `curl http://localhost:8000/health` (порт **ml-serving** при пробросе из compose); UI — **Grafana** http://localhost:3000; остальные порты — в **`infra/README.md`**. Опционально: скриншоты дашбордов, схемы из **`readme.md`** / **`README.md`**, сопроводительное видео.
 
@@ -96,9 +92,8 @@ docker compose up --build -d
 
 | Содержание | Файл |
 |------------|------|
-| Запуск, управление compose, Grafana/Kibana/Prometheus (кратко), общая диаграмма | `README.md` |
-| Полная логическая схема (вторая диаграмма coordinator), протоколы, мониторинг | `readme.md` |
-| Установка и запуск (Docker) | `infra/README.md` |
+| Установка и запуск (Docker), стек наблюдаемости | `infra/README.md` |
 | Архитектура (высокий уровень) | `high-level-design.md` |
-| ML-эксперименты и выбор моделей | `ml-experiments/README.md` |
+| Веса и winners.json | `services/ml-serving/models/README.md` |
 | Инференс-сервис | `services/ml-serving/README.md` |
+| Видео-контур (router) | `services/router/README.md` |

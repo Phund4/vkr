@@ -4,24 +4,24 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
-  - job_name: data_ingestion
+  - job_name: router
     static_configs:
-      - targets: ["data-ingestion:9091"]
-  - job_name: ml_gateway
-    static_configs:
-      - targets: ["ml-gateway:8092"]
+      - targets: ["router:9091"]
   - job_name: analytics
     static_configs:
       - targets: ["analytics:8093"]
-  - job_name: map_portal
+  - job_name: pusher
     static_configs:
-      - targets: ["map-portal:8096"]
+      - targets: ["pusher:8082"]
   - job_name: ml_serving
     static_configs:
       - targets: ["ml-serving:8000"]
   - job_name: coordinator
     static_configs:
       - targets: ["coordinator:8098"]
+  - job_name: data_service
+    static_configs:
+      - targets: ["data-service:8611"]
 
   # Инфраструктура (экспортёры Prometheus)
   - job_name: elasticsearch
@@ -49,6 +49,8 @@ scrape_configs:
       - targets:
           - http://coordinator:8098/health
           - http://ml-serving:8000/health
+          - http://rtsp-generator:8096/health
+          - http://data-service:8610/health
         labels:
           service: coordinator_ml
     relabel_configs:

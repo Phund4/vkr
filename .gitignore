@@ -7,9 +7,10 @@ venv/
 __pycache__/
 *.py[cod]
 .DS_Store
-ml-experiments/data/
-ml-experiments/artifacts/
-ml-experiments/.mplconfig/
 .data/
+# Тяжёлые веса (структура каталогов — через .gitkeep)
+services/ml-serving/artifacts/**/*.pt
+services/ml-serving/artifacts/**/*.pth
+services/ml-serving/artifacts/**/*.onnx
 *.onnx
 !**/.gitkeep

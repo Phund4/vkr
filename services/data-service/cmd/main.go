@@ -1,9 +1,9 @@
-// @title Trace Data Service API
+// @title ITS Data Service API
 // @version 1.0
-// @description HTTP API trace-data-service: GET /health и GET /probe/health (liveness), GET /probe/ready (readiness), GET /swagger и /swagger/* (Swagger UI и OpenAPI).
+// @description HTTP API: health/probe, чтение ClickHouse road_incidents и road_congestion, Swagger.
 // @BasePath /
 
-//go:generate go run github.com/swaggo/swag/cmd/swag@latest init -g cmd/main.go -o ../docs -d ../ --parseInternal
+//go:generate sh -c "cd .. && go run github.com/swaggo/swag/cmd/swag@latest init -g cmd/main.go -o docs -d . --parseInternal --parseDependency"
 
 package main
 
@@ -26,7 +26,7 @@ func main() {
 	if err := app.Run(ctx); err != nil {
 		app.Logger().
 			Fatal().Err(err).
-			Msg("failed to run trace data service")
+			Msg("failed to run data service")
 	}
 }
 

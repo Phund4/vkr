@@ -11,5 +11,5 @@ func (app *App) configureHTTPServer() {
 	app.httpServer.Use(httpMiddleware.Common()...)
 	app.httpServer.Use(httpMiddleware.Logger(app.Logger()))
 	app.httpServer.Use(httpMiddleware.ApiV1RateLimiter())
-	app.httpServer.Use(httpMiddleware.GetProductRateLimiter())
+	app.httpServer.Use(httpMiddleware.RoadDataRateLimiter())
 }

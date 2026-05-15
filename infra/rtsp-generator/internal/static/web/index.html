@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RTSP Studio — генератор потоков</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg0: #0c0e14;
+      --bg1: #12151f;
+      --card: rgba(22, 26, 38, 0.85);
+      --stroke: rgba(120, 140, 200, 0.18);
+      --text: #e8eaf4;
+      --muted: #8b93a8;
+      --accent: #7c6cf5;
+      --accent2: #3dd6c6;
+      --danger: #f07178;
+      --ok: #8bd49c;
+      --radius: 14px;
+      --shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+      --glow: 0 0 40px rgba(124, 108, 245, 0.15);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Outfit", system-ui, sans-serif;
+      background: var(--bg0);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+    .bg-grid {
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(124, 108, 245, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(124, 108, 245, 0.04) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none;
+      mask-image: radial-gradient(ellipse 80% 60% at 50% -10%, black, transparent);
+    }
+    .orb {
+      position: fixed;
+      width: 420px;
+      height: 420px;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.35;
+      pointer-events: none;
+    }
+    .orb1 { top: -120px; right: -80px; background: #5b4ddb; }
+    .orb2 { bottom: -160px; left: -100px; background: #2a9d8f; }
+    .wrap {
+      position: relative;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem 4rem;
+    }
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+    }
+    .logo {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: #0c0e14;
+      box-shadow: var(--glow);
+    }
+    h1 {
+      font-size: 1.65rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .sub {
+      color: var(--muted);
+      font-size: 0.92rem;
+      margin-top: 0.15rem;
+    }
+    .meta {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-align: right;
+      background: var(--card);
+      border: 1px solid var(--stroke);
+      border-radius: var(--radius);
+      padding: 0.65rem 1rem;
+      backdrop-filter: blur(12px);
+    }
+    .meta strong { color: var(--accent2); font-weight: 500; }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1.1fr;
+      gap: 1.25rem;
+    }
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr; }
+      .meta { text-align: left; }
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--stroke);
+      border-radius: var(--radius);
+      padding: 1.35rem 1.5rem;
+      backdrop-filter: blur(16px);
+      box-shadow: var(--shadow);
+    }
+    .card h2 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin-bottom: 1.1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 12px var(--accent);
+    }
+    label {
+      display: block;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+    }
+    input[type="text"], select {
+      width: 100%;
+      padding: 0.65rem 0.85rem;
+      border-radius: 10px;
+      border: 1px solid var(--stroke);
+      background: rgba(10, 12, 18, 0.6);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.95rem;
+      margin-bottom: 1rem;
+    }
+    input:focus, select:focus {
+      outline: none;
+      border-color: rgba(124, 108, 245, 0.5);
+      box-shadow: 0 0 0 3px rgba(124, 108, 245, 0.12);
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+    @media (max-width: 520px) { .row { grid-template-columns: 1fr; } }
+    .toggles {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .toggle {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+      user-select: none;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+    .toggle input { accent-color: var(--accent); width: 1rem; height: 1rem; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      padding: 0.7rem 1.2rem;
+      border-radius: 10px;
+      border: none;
+      font-family: inherit;
+      font-weight: 600;
+      font-size: 0.92rem;
+      cursor: pointer;
+      transition: transform 0.12s, box-shadow 0.12s;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), #5a4bd4);
+      color: white;
+      box-shadow: 0 8px 28px rgba(124, 108, 245, 0.35);
+      width: 100%;
+    }
+    .btn-primary:hover { box-shadow: 0 10px 32px rgba(124, 108, 245, 0.45); }
+    .btn-ghost {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--stroke);
+    }
+    .btn-danger {
+      background: rgba(240, 113, 120, 0.15);
+      color: var(--danger);
+      border: 1px solid rgba(240, 113, 120, 0.35);
+      padding: 0.4rem 0.75rem;
+      font-size: 0.82rem;
+    }
+    .streams {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      max-height: 520px;
+      overflow-y: auto;
+    }
+    .stream {
+      border: 1px solid var(--stroke);
+      border-radius: 12px;
+      padding: 1rem 1.1rem;
+      background: rgba(10, 12, 18, 0.45);
+    }
+    .stream-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+    }
+    .stream-id {
+      font-weight: 600;
+      font-size: 1rem;
+    }
+    .url {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.72rem;
+      color: var(--accent2);
+      word-break: break-all;
+      margin: 0.35rem 0;
+    }
+    .pill {
+      display: inline-block;
+      font-size: 0.68rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      background: rgba(124, 108, 245, 0.2);
+      color: #c4bfff;
+    }
+    .empty {
+      text-align: center;
+      padding: 2.5rem 1rem;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    .toast {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      padding: 0.85rem 1.15rem;
+      border-radius: 12px;
+      font-size: 0.9rem;
+      box-shadow: var(--shadow);
+      z-index: 100;
+      animation: slide 0.35s ease;
+      max-width: min(420px, 92vw);
+    }
+    @keyframes slide {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .toast.ok { background: rgba(139, 212, 156, 0.95); color: #0c140f; }
+    .toast.err { background: rgba(240, 113, 120, 0.95); color: #1a0a0c; }
+    .hint {
+      margin-top: 0.75rem;
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="orb orb1"></div>
+  <div class="orb orb2"></div>
+  <div class="wrap">
+    <header>
+      <div class="brand">
+        <div class="logo">▶</div>
+        <div>
+          <h1>RTSP Studio</h1>
+          <p class="sub">Генератор камер для MediaMTX · без coordinator</p>
+        </div>
+      </div>
+      <div class="meta" id="meta">загрузка…</div>
+    </header>
+
+    <div class="grid">
+      <div class="card">
+        <h2><span class="dot"></span> Новый поток</h2>
+        <label for="sid">Stream ID (путь в URL)</label>
+        <input type="text" id="sid" placeholder="cam-east-01" autocomplete="off" />
+
+        <div id="fileBlock">
+          <label for="file">Видеофайл (.mp4 в каталоге)</label>
+          <select id="file"><option value="">— выберите файл —</option></select>
+        </div>
+
+        <div class="toggles">
+          <label class="toggle"><input type="checkbox" id="synthetic" /> Синтетика (testsrc)</label>
+          <label class="toggle"><input type="checkbox" id="loop" checked /> Зациклить файл</label>
+          <label class="toggle"><input type="checkbox" id="realtime" checked /> Режим реального времени (-re)</label>
+        </div>
+
+        <div id="synBlock" style="display:none">
+          <label for="synKind">Паттерн</label>
+          <select id="synKind">
+            <option value="testsrc2">testsrc2 (сетка + движение)</option>
+            <option value="smptebars">SMPTE color bars</option>
+          </select>
+        </div>
+
+        <button type="button" class="btn btn-primary" id="startBtn">Запустить публикацию</button>
+        <p class="hint">
+          Полный URL публикации: <strong id="hintBase">…</strong>/<strong>stream_id</strong>.
+          <strong>Stream ID</strong> должен совпадать с последним сегментом <code>rtsp_url</code> в конфиге router
+          (в docker по умолчанию <code>cam-01</code> … <code>cam-04</code> — см. <code>services/router/config.cameras.docker.yaml</code>).
+          Иначе MediaMTX примет поток, но router не читает его — метрики конвейера в Grafana останутся пустыми.
+          Поднимите профиль <code>apps</code> (router, ml-serving, analytics …), иначе метрик pipeline не будет.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2><span class="dot" style="background:var(--accent2);box-shadow:0 0 12px var(--accent2)"></span> Активные потоки</h2>
+        <div class="streams" id="streams"><div class="empty">Нет запущенных потоков</div></div>
+        <div style="margin-top:1rem;display:flex;gap:0.5rem;justify-content:flex-end">
+          <button type="button" class="btn btn-ghost" id="refreshBtn">Обновить</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (s) => document.querySelector(s);
+    const toast = (msg, ok = true) => {
+      const t = document.createElement("div");
+      t.className = "toast " + (ok ? "ok" : "err");
+      t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 4200);
+    };
+
+    async function loadConfig() {
+      const r = await fetch("/api/config");
+      const j = await r.json();
+      $("#meta").innerHTML =
+        "base <strong>" + j.rtsp_publish_base + "</strong><br/>" +
+        "каталог <strong>" + j.video_dir + "</strong> · " + j.default_size + " @ " + j.default_fps + "fps";
+      $("#hintBase").textContent = j.rtsp_publish_base;
+    }
+
+    async function loadVideos() {
+      const r = await fetch("/api/videos");
+      const j = await r.json();
+      const sel = $("#file");
+      sel.innerHTML = '<option value="">— выберите файл —</option>';
+      (j.videos || []).forEach((v) => {
+        const o = document.createElement("option");
+        o.value = v;
+        o.textContent = v;
+        sel.appendChild(o);
+      });
+    }
+
+    function streamIdOf(s) {
+      if (!s || typeof s !== "object") return "";
+      if (s.stream_id) return String(s.stream_id);
+      if (s.spec && s.spec.stream_id) return String(s.spec.stream_id);
+      return "";
+    }
+
+    function specOf(s) {
+      return s && typeof s === "object" && s.spec ? s.spec : {};
+    }
+
+    function renderStreams(list) {
+      const el = $("#streams");
+      const arr = Array.isArray(list) ? list : [];
+      if (!arr.length) {
+        el.innerHTML = '<div class="empty">Нет запущенных потоков</div>';
+        return;
+      }
+      el.innerHTML = arr.map((s) => {
+        const spec = specOf(s);
+        const sid = streamIdOf(s);
+        const src = spec.synthetic
+          ? "синтетика · " + (spec.synthetic_kind || "testsrc2")
+          : (spec.file || "—");
+        const flags = [
+          spec.loop ? "loop" : "",
+          spec.realtime ? "realtime" : "",
+        ].filter(Boolean).join(", ");
+        const url = s.rtsp_url || "";
+        const errLog = (s.last_error && String(s.last_error).trim()) ? `<pre style="margin-top:0.5rem;font-size:0.7rem;color:var(--danger);white-space:pre-wrap;word-break:break-word;max-height:6rem;overflow:auto">${escapeHtml(s.last_error)}</pre>` : "";
+        return `<div class="stream">
+          <div class="stream-head">
+            <div>
+              <div class="stream-id">${escapeHtml(sid || "—")}</div>
+              <span class="pill">${escapeHtml(src)}</span>
+              ${flags ? '<span class="pill">' + escapeHtml(flags) + "</span>" : ""}
+            </div>
+            ${sid ? `<button type="button" class="btn btn-danger" data-stop="${escapeHtml(sid)}">Стоп</button>` : ""}
+          </div>
+          <div class="url">${escapeHtml(url)}</div>
+          ${url ? `<button type="button" class="btn btn-ghost" style="margin-top:0.35rem;font-size:0.78rem;padding:0.35rem 0.6rem" data-copy="${escapeHtml(url)}">Копировать URL</button>` : ""}
+          ${errLog}
+        </div>`;
+      }).join("");
+
+      el.querySelectorAll("[data-stop]").forEach((b) => {
+        b.onclick = async () => {
+          const id = b.getAttribute("data-stop");
+          const r = await fetch("/api/streams/" + encodeURIComponent(id), { method: "DELETE" });
+          if (r.ok) { toast("Поток остановлен"); loadStreams(); }
+          else toast(await r.text(), false);
+        };
+      });
+      el.querySelectorAll("[data-copy]").forEach((b) => {
+        b.onclick = () => {
+          navigator.clipboard.writeText(b.getAttribute("data-copy"));
+          toast("URL скопирован");
+        };
+      });
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");
+    }
+
+    async function loadStreams() {
+      try {
+        const r = await fetch("/api/streams");
+        if (!r.ok) {
+          toast("GET /api/streams: " + r.status + " " + (await r.text()).slice(0, 200), false);
+          return;
+        }
+        const j = await r.json();
+        const raw = j.streams;
+        const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
+        renderStreams(list);
+      } catch (e) {
+        toast("Список потоков: " + e, false);
+      }
+    }
+
+    $("#synthetic").onchange = () => {
+      const syn = $("#synthetic").checked;
+      $("#fileBlock").style.display = syn ? "none" : "block";
+      $("#synBlock").style.display = syn ? "block" : "none";
+    };
+
+    $("#startBtn").onclick = async () => {
+      const stream_id = $("#sid").value.trim();
+      if (!stream_id) { toast("Укажите stream id", false); return; }
+      const synthetic = $("#synthetic").checked;
+      const body = {
+        stream_id,
+        synthetic,
+        loop: $("#loop").checked,
+        realtime: $("#realtime").checked,
+      };
+      if (synthetic) {
+        body.synthetic_kind = $("#synKind").value;
+      } else {
+        const f = $("#file").value;
+        if (!f) { toast("Выберите видеофайл", false); return; }
+        body.file = f;
+      }
+      const r = await fetch("/api/streams", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (r.ok) {
+        toast("Поток запущен");
+        $("#sid").value = "";
+        loadStreams();
+      } else {
+        let msg = "";
+        try {
+          const j = await r.json();
+          msg = j.message || JSON.stringify(j);
+        } catch {
+          msg = await r.text();
+        }
+        toast(msg || "ошибка запроса", false);
+      }
+    };
+
+    $("#refreshBtn").onclick = () => { loadStreams(); loadVideos(); };
+
+    (async () => {
+      try {
+        await loadConfig();
+        await loadVideos();
+        await loadStreams();
+        setInterval(loadStreams, 8000);
+      } catch (e) {
+        toast(String(e), false);
+      }
+    })();
+  </script>
+</body>
+</html>
