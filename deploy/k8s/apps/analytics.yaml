@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analytics
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: analytics
+  template:
+    metadata:
+      labels:
+        app: analytics
+    spec:
+      containers:
+        - name: analytics
+          image: traffic/analytics:local
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8093
+          env:
+            - name: SERVICE_NAME
+              value: analytics
+            - name: LOG_FORMAT
+              value: json
+            - name: LOG_LEVEL
+              value: info
+            - name: LISTEN_ADDR
+              value: ":8093"
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: kafka:9092
+            - name: KAFKA_CONSUMER_GROUP
+              value: analytics-ingest
+            - name: KAFKA_TOPIC_VIDEO
+              value: its.video.ingest
+            - name: KAFKA_TOPIC_PERSIST
+              value: its.persist.events
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: analytics
+spec:
+  selector:
+    app: analytics
+  ports:
+    - port: 8093
+      targetPort: 8093

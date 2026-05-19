@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pusher
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pusher
+  template:
+    metadata:
+      labels:
+        app: pusher
+    spec:
+      containers:
+        - name: pusher
+          image: traffic/pusher:local
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8094
+            - containerPort: 8082
+          env:
+            - name: SERVICE_NAME
+              value: pusher
+            - name: LOG_FORMAT
+              value: json
+            - name: LOG_LEVEL
+              value: info
+            - name: ENV
+              value: dev
+            - name: SERVER_PORT
+              value: ":8094"
+            - name: PROMETHEUS_PORT
+              value: "8082"
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: kafka:9092
+            - name: KAFKA_CONSUMER_GROUP
+              value: pusher
+            - name: KAFKA_TOPIC_PERSIST
+              value: its.persist.events
+            - name: CLICKHOUSE_ADDR
+              value: clickhouse:9000
+            - name: CLICKHOUSE_DATABASE
+              value: default
+            - name: CLICKHOUSE_USER
+              value: default
+            - name: CLICKHOUSE_PASSWORD
+              value: ""
+            - name: S3_ENDPOINT
+              value: http://minio:9000
+            - name: S3_BUCKET
+              value: its-frames
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: traffic-secrets
+                  key: minio-access-key
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: traffic-secrets
+                  key: minio-secret-key
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pusher
+spec:
+  selector:
+    app: pusher
+  ports:
+    - name: http
+      port: 8094
+      targetPort: 8094
+    - name: metrics
+      port: 8082
+      targetPort: 8082

@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ml-serving
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ml-serving
+  template:
+    metadata:
+      labels:
+        app: ml-serving
+    spec:
+      containers:
+        - name: ml-serving
+          image: traffic/ml-serving:local
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8000
+          env:
+            - name: SERVING_ROOT
+              value: /app
+            - name: ANALYTICS_INGEST_URL
+              value: http://analytics:8093/v1/ingest
+            - name: WINNERS_JSON
+              value: /app/models/winners.json
+            - name: ML_INFER_MAX_THREADS
+              value: "8"
+            - name: TORCH_NUM_THREADS
+              value: "1"
+          volumeMounts:
+            - name: artifacts
+              mountPath: /app/artifacts
+              readOnly: true
+      volumes:
+        - name: artifacts
+          hostPath:
+            path: __PIIS_REPO_ROOT__/.data/artifacts
+            type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ml-serving
+spec:
+  type: LoadBalancer
+  selector:
+    app: ml-serving
+  ports:
+    - port: 8000
+      targetPort: 8000

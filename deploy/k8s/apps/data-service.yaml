@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: data-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: data-service
+  template:
+    metadata:
+      labels:
+        app: data-service
+    spec:
+      containers:
+        - name: data-service
+          image: traffic/data-service:local
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8610
+            - containerPort: 8611
+          env:
+            - name: ENV
+              value: dev
+            - name: SERVICE_NAME
+              value: data-service
+            - name: LOG_FORMAT
+              value: json
+            - name: LOG_LEVEL
+              value: info
+            - name: SERVER_PORT
+              value: ":8610"
+            - name: PROMETHEUS_PORT
+              value: "8611"
+            - name: METRICS_NAMESPACE
+              value: data_service
+            - name: METRICS_SUBSYSTEM
+              value: api
+            - name: CLICKHOUSE_HOST
+              value: clickhouse:8123
+            - name: CLICKHOUSE_DATABASE
+              value: default
+            - name: CLICKHOUSE_USER
+              value: default
+            - name: CLICKHOUSE_PASSWORD
+              value: ""
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: data-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: data-service
+  ports:
+    - name: http
+      port: 8610
+      targetPort: 8610
+    - name: metrics
+      port: 8611
+      targetPort: 8611

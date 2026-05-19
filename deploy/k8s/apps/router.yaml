@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: router
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: router
+  template:
+    metadata:
+      labels:
+        app: router
+    spec:
+      containers:
+        - name: router
+          image: traffic/router:local
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 9091
+          env:
+            - name: SERVICE_NAME
+              value: router
+            - name: LOG_FORMAT
+              value: json
+            - name: LOG_LEVEL
+              value: info
+            - name: CONFIG_PATH
+              value: /app/config.cameras.docker.yaml
+            - name: COORDINATOR_BASE_URL
+              value: http://coordinator:8098
+            - name: COORDINATOR_ZONE_ID
+              value: zone-a
+            - name: COORDINATOR_CLUSTER_ID
+              value: cluster-1
+            - name: COORDINATOR_INSTANCE_ID
+              value: ingest-a1
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: traffic-secrets
+                  key: minio-access-key
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: traffic-secrets
+                  key: minio-secret-key
+            - name: S3_ENDPOINT
+              value: http://minio:9000
+            - name: ML_BASE_URL
+              value: http://ml-serving:8000
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: kafka:9092
+            - name: KAFKA_TOPIC_VIDEO
+              value: its.video.ingest
+          volumeMounts:
+            - name: config
+              mountPath: /app/config.cameras.docker.yaml
+              subPath: config.cameras.docker.yaml
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: router-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: router
+spec:
+  selector:
+    app: router
+  ports:
+    - port: 9091
+      targetPort: 9091
