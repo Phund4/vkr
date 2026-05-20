@@ -1,6 +1,4 @@
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-
+# Порядок деплоя (deploy/scripts/render-apply.sh). Не Kustomize — см. customization.yaml.
 namespace: traffic
 
 resources:
@@ -30,15 +28,20 @@ resources:
   - observability/grafana-pvc.yaml
   - observability/grafana.yaml
 
-configMapGenerator:
+configMaps:
   - name: postgres-init
     files:
-      - ../../infra/postgres/init/001_coordinator_schema.sql
-      - ../../infra/postgres/init/002_coordinator_seed.sql
+      - key: 001_coordinator_schema.sql
+        path: ../../infra/postgres/init/001_coordinator_schema.sql
+      - key: 002_coordinator_seed.sql
+        path: ../../infra/postgres/init/002_coordinator_seed.sql
   - name: router-config
     files:
-      - ../../services/router/config.cameras.docker.yaml
+      - key: config.cameras.docker.yaml
+        path: ../../services/router/config.cameras.docker.yaml
   - name: grafana-dashboards-json
     files:
-      - traffic-services.json=../../infra/grafana/provisioning/dashboards/json/traffic-services.json
-      - traffic-results.json=../../infra/grafana/provisioning/dashboards/json/traffic-results.json
+      - key: traffic-services.json
+        path: ../../infra/grafana/provisioning/dashboards/json/traffic-services.json
+      - key: traffic-results.json
+        path: ../../infra/grafana/provisioning/dashboards/json/traffic-results.json

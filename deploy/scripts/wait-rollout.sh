@@ -38,7 +38,7 @@ wait_deploy clickhouse
 wait_deploy minio
 wait_deploy mediamtx
 
-echo "Waiting for init jobs (создаются через make apply / kustomize)..."
+echo "Waiting for init jobs (создаются через make apply / customization.yaml)..."
 wait_job kafka-topics-init 240s
 wait_job clickhouse-init 120s
 wait_job minio-init 120s

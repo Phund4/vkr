@@ -21,7 +21,7 @@ sync-ml-artifacts: ## Веса ML → .data/artifacts (как infra/Makefile)
 	$(MAKE) -C $(REPO_ROOT)/infra sync-ml-artifacts
 
 .PHONY: apply
-apply: ## kubectl apply -k deploy/k8s
+apply: ## kubectl apply по deploy/k8s/customization.yaml
 	bash $(DEPLOY_DIR)/scripts/render-apply.sh
 
 .PHONY: wait
