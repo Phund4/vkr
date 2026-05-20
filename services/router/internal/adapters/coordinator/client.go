@@ -28,10 +28,10 @@ func New(baseURL string, timeout time.Duration) *Client {
 }
 
 // fetchAssignments выполняет GET /v1/assignments с фильтрами зоны/кластера/класса данных.
-func (c *Client) fetchAssignments(ctx context.Context, zoneID, clusterID, instanceID, dataClass string) ([]assignmentItemJSON, error) {
+func (c *Client) fetchAssignments(ctx context.Context, zoneID, clusterID, instanceID, dataClass string) (assignmentsRespJSON, error) {
 	u, err := url.Parse(c.base + pathAssignments)
 	if err != nil {
-		return nil, err
+		return assignmentsRespJSON{}, err
 	}
 	q := u.Query()
 	q.Set(queryZoneID, zoneID)
@@ -42,30 +42,30 @@ func (c *Client) fetchAssignments(ctx context.Context, zoneID, clusterID, instan
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
-		return nil, err
+		return assignmentsRespJSON{}, err
 	}
 	resp, err := c.cli.Do(req)
 	if err != nil {
-		return nil, err
+		return assignmentsRespJSON{}, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, assignmentsStatusError(resp.Status)
+		return assignmentsRespJSON{}, assignmentsStatusError(resp.Status)
 	}
 	var ar assignmentsRespJSON
 	if err := json.NewDecoder(resp.Body).Decode(&ar); err != nil {
-		return nil, err
+		return assignmentsRespJSON{}, err
 	}
-	return ar.Items, nil
+	return ar, nil
 }
 
-// FetchCameraAssignments возвращает камеры с data_class=road_segment_video для данного инстанса.
-func (c *Client) FetchCameraAssignments(ctx context.Context, zoneID, clusterID, instanceID string) ([]domain.Camera, error) {
-	items, err := c.fetchAssignments(ctx, zoneID, clusterID, instanceID, config.DataClassRoadSegmentVideo)
+// FetchCameraAssignments возвращает камеры и revision назначений coordinator.
+func (c *Client) FetchCameraAssignments(ctx context.Context, zoneID, clusterID, instanceID string) ([]domain.Camera, uint64, error) {
+	ar, err := c.fetchAssignments(ctx, zoneID, clusterID, instanceID, config.DataClassRoadSegmentVideo)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return assignmentItemsToDomain(items), nil
+	return assignmentItemsToDomain(ar.Items), ar.Revision, nil
 }
 
 // SendHeartbeat отправляет POST /v1/workers/heartbeat с числом активных назначений.

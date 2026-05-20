@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"coordinator/internal/adapters/http/dto"
+	"coordinator/internal/core/services"
 )
 
 func (h *Handler) Assignments(w http.ResponseWriter, r *http.Request) {
@@ -13,5 +14,8 @@ func (h *Handler) Assignments(w http.ResponseWriter, r *http.Request) {
 	instanceID := strings.TrimSpace(r.URL.Query().Get("instance_id"))
 	dataClass := strings.TrimSpace(r.URL.Query().Get("data_class"))
 	items := dto.SourcesListFromDomain(h.svc.Assignments(zoneID, clusterID, instanceID, dataClass))
-	WriteJSON(w, http.StatusOK, dto.AssignmentsResponse{Items: items})
+	WriteJSON(w, http.StatusOK, dto.AssignmentsResponse{
+		Revision: services.CurrentAssignmentsRevision(),
+		Items:    items,
+	})
 }

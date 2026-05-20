@@ -26,18 +26,6 @@ type S3 struct {
 	Region string `yaml:"region"`
 }
 
-// ML HTTP-сервис инференса по кадру.
-type ML struct {
-	// BaseURL корень сервиса ML.
-	BaseURL string `yaml:"base_url"`
-
-	// ProcessPath путь multipart-обработки (например /v1/process).
-	ProcessPath string `yaml:"process_path"`
-
-	// TimeoutSeconds таймаут HTTP-запроса к ML.
-	TimeoutSeconds int `yaml:"timeout_seconds"`
-}
-
 // Ingest поведение захвата и выгрузки кадров.
 type Ingest struct {
 	// TargetFPS целевой FPS для ffmpeg при дискретизации потока.
@@ -84,9 +72,6 @@ type Root struct {
 	// S3 настройки хранилища.
 	S3 S3 `yaml:"s3"`
 
-	// ML настройки сервиса обработки кадров.
-	ML ML `yaml:"ml"`
-
 	// Ingest параметры пайплайна кадров.
 	Ingest Ingest `yaml:"ingest"`
 
@@ -129,12 +114,6 @@ func LoadFromEnv() (*Root, error) {
 
 // validate проверяет базовую конфигурацию и подставляет значения по умолчанию.
 func (c *Root) validate() error {
-	if c.ML.ProcessPath == "" {
-		c.ML.ProcessPath = "/v1/process"
-	}
-	if c.ML.TimeoutSeconds <= 0 {
-		c.ML.TimeoutSeconds = 30
-	}
 	if c.Ingest.TargetFPS <= 0 {
 		c.Ingest.TargetFPS = 3
 	}

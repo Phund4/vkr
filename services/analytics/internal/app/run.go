@@ -22,7 +22,7 @@ func Run(rootCtx context.Context) error {
 
 	if deps.Config.KafkaBootstrap != "" {
 		go func() {
-			ingestkafka.RunIngestConsumer(rootCtx, deps.Ingest, deps.Config)
+			ingestkafka.RunConsumers(rootCtx, deps.Ingest, deps.Config)
 		}()
 	}
 

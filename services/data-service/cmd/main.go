@@ -1,6 +1,6 @@
 // @title ITS Data Service API
 // @version 1.0
-// @description HTTP API: health/probe, чтение ClickHouse road_incidents и road_congestion, Swagger.
+// @description HTTP API: health/probe, кадры S3, инциденты и загруженность из ClickHouse, Swagger.
 // @BasePath /
 
 //go:generate sh -c "cd .. && go run github.com/swaggo/swag/cmd/swag@latest init -g cmd/main.go -o docs -d . --parseInternal --parseDependency"

@@ -42,6 +42,10 @@ type RoadListParams struct {
 	SegmentID string
 	// CameraID фильтр по камере.
 	CameraID string
+	// From нижняя граница observed_at (UTC).
+	From time.Time
+	// To верхняя граница observed_at (UTC).
+	To time.Time
 	// Limit максимум строк в ответе.
 	Limit int
 }

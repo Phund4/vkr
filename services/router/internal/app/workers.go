@@ -21,7 +21,7 @@ func (a *App) startCameras(ctx context.Context, cameras []domain.Camera, wg *syn
 				ctx,
 				cam,
 				a.deps.store,
-				a.deps.ml,
+				a.deps.mlPub,
 				a.deps.videoPub,
 				a.deps.cfg.S3.Prefix,
 				a.deps.cfg.Ingest.FFmpegPath,

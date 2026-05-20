@@ -33,7 +33,24 @@ func SourcesListFromDomain(items []domain.Source) []SourceItem {
 }
 
 type AssignmentsResponse struct {
-	Items []SourceItem `json:"items"`
+	Revision uint64       `json:"revision"`
+	Items    []SourceItem `json:"items"`
+}
+
+// RouterNotifyResultItem исход push reload на router.
+type RouterNotifyResultItem struct {
+	ZoneID     string `json:"zone_id"`
+	ClusterID  string `json:"cluster_id"`
+	InstanceID string `json:"instance_id"`
+	URL        string `json:"url"`
+	OK         bool   `json:"ok"`
+	Error      string `json:"error,omitempty"`
+}
+
+// ReloadAssignmentsResponse ответ POST /v1/assignments/reload.
+type ReloadAssignmentsResponse struct {
+	Revision uint64                   `json:"revision"`
+	Notified []RouterNotifyResultItem `json:"notified"`
 }
 
 type SourcesResponse struct {

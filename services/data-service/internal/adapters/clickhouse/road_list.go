@@ -2,70 +2,16 @@ package clickhouse
 
 import (
 	"context"
-	"fmt"
 
 	"data-service/internal/core/domain"
 )
 
-// ListRoadIncidents возвращает последние строки road_incidents (новые сверху).
+// ListRoadIncidents возвращает строки road_incidents с фильтрами и сортировкой по времени.
 func (r *Repository) ListRoadIncidents(ctx context.Context, p domain.RoadListParams) ([]domain.RoadIncident, error) {
-	q := fmt.Sprintf(queryRoadIncidents, r.qualifiedTable(tableRoadIncidents))
-
-	rows, err := r.client.QueryContext(ctx, q)
-	if err != nil {
-		return nil, fmt.Errorf("query road_incidents: %w", err)
-	}
-	defer rows.Close()
-
-	var out []domain.RoadIncident
-	for rows.Next() {
-		var row RoadIncidentRow
-		if err := rows.Scan(
-			&row.ObservedAt,
-			&row.SegmentID,
-			&row.CameraID,
-			&row.S3Key,
-			&row.CrashProbability,
-			&row.IncidentLabel,
-			&row.RawML,
-		); err != nil {
-			return nil, fmt.Errorf("scan road_incidents: %w", err)
-		}
-		out = append(out, row.toDomain())
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return out, nil
+	return r.listIncidents(ctx, p)
 }
 
-// ListRoadCongestion возвращает последние строки road_congestion (новые сверху).
+// ListRoadCongestion возвращает строки road_congestion с фильтрами.
 func (r *Repository) ListRoadCongestion(ctx context.Context, p domain.RoadListParams) ([]domain.RoadCongestion, error) {
-	q := fmt.Sprintf(queryRoadCongestion, r.qualifiedTable(tableRoadCongestion))
-
-	rows, err := r.client.QueryContext(ctx, q)
-	if err != nil {
-		return nil, fmt.Errorf("query road_congestion: %w", err)
-	}
-	defer rows.Close()
-
-	var out []domain.RoadCongestion
-	for rows.Next() {
-		var row RoadCongestionRow
-		if err := rows.Scan(
-			&row.ObservedAt,
-			&row.SegmentID,
-			&row.CameraID,
-			&row.S3Key,
-			&row.CongestionScore,
-			&row.RawML,
-		); err != nil {
-			return nil, fmt.Errorf("scan road_congestion: %w", err)
-		}
-		out = append(out, row.toDomain())
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return out, nil
+	return r.listCongestion(ctx, p)
 }

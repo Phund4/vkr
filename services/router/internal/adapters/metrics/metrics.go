@@ -15,16 +15,16 @@ var (
 		[]string{"stage"},
 	)
 
-	// FramesProcessed исход обработки кадра (после попытки S3+ML).
+	// FramesProcessed исход обработки кадра (после попытки S3+Kafka ML).
 	FramesProcessed = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "router_frames_processed_total",
-			Help: "Frames processed by outcome (ml_ok / ml_err; s3 may have failed earlier).",
+			Help: "Frames processed by outcome (kafka_ml_ok / kafka_ml_error; s3 may have failed earlier).",
 		},
 		[]string{"outcome"},
 	)
 
-	// FrameHandleSeconds полное время handleFrame (JPEG→PNG→S3→ML).
+	// FrameHandleSeconds полное время handleFrame (JPEG→PNG→S3→Kafka ML).
 	FrameHandleSeconds = promauto.NewHistogram(
 		prometheus.HistogramOpts{
 			Name:    "router_frame_handle_duration_seconds",
@@ -41,21 +41,29 @@ var (
 		},
 	)
 
-	// BytesSentML размер JPEG в multipart к ML.
-	BytesSentML = promauto.NewCounter(
+	// KafkaMLFrameBytes суммарный размер JPEG, опубликованный в its.ml.*.in (×2: accident + congestion).
+	KafkaMLFrameBytes = promauto.NewCounter(
 		prometheus.CounterOpts{
-			Name: "router_bytes_sent_ml_total",
-			Help: "Total JPEG bytes sent to ML service.",
+			Name: "router_kafka_ml_frame_bytes_total",
+			Help: "Total JPEG bytes published to Kafka ML input topics (accident + congestion per frame).",
 		},
 	)
 
-	// MLLatencySeconds время HTTP вызова ML.
-	MLLatencySeconds = promauto.NewHistogram(
+	// KafkaMLPublishDurationSeconds время публикации в оба топика its.ml.*.in.
+	KafkaMLPublishDurationSeconds = promauto.NewHistogram(
 		prometheus.HistogramOpts{
-			Name:    "router_ml_request_duration_seconds",
-			Help:    "Wall time for parallel POSTs to ML accident + congestion endpoints.",
+			Name:    "router_kafka_ml_publish_duration_seconds",
+			Help:    "Wall time for parallel publish to its.ml.accident.in and its.ml.congestion.in.",
 			Buckets: []float64{0.02, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30},
 		},
+	)
+
+	KafkaMLPublishErrors = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "router_kafka_ml_publish_errors_total",
+			Help: "Failures publishing frame to Kafka ML input topics.",
+		},
+		[]string{"stage"},
 	)
 
 	KafkaVideoPublishErrors = promauto.NewCounterVec(

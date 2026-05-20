@@ -6,11 +6,6 @@ s3:
   prefix: "its-ingest"
   region: "us-east-1"
 
-ml:
-  base_url: "http://127.0.0.1:8000"
-  process_path: "/v1/process"
-  timeout_seconds: 30
-
 ingest:
   target_fps: 5
   # Параллельная обработка кадров с одной камеры (по умолчанию ceil(target_fps)), иначе FPS в логах ≈ 1/latency(S3+ML).

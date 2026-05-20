@@ -1,4 +1,4 @@
-// Program router — захват кадров с RTSP, S3, Kafka и два вызова ML по назначениям coordinator.
+// Program router — захват кадров с RTSP, S3, Kafka (video meta + ML in-topics) по назначениям coordinator.
 package main
 
 import (

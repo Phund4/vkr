@@ -22,6 +22,7 @@ func Run(ctx context.Context, listenAddr string, svc *services.CoordinatorServic
 	mux.Handle("GET /metrics", promhttp.Handler())
 	mux.HandleFunc("GET /v1/sources", h.Sources)
 	mux.HandleFunc("GET /v1/assignments", h.Assignments)
+	mux.HandleFunc("POST /v1/assignments/reload", h.ReloadAssignments)
 	mux.HandleFunc("POST /v1/workers/heartbeat", h.WorkerHeartbeat)
 	mux.HandleFunc("GET /v1/workers", h.Workers)
 	mux.HandleFunc("GET /v1/ingestion_instances", h.IngestionInstances)

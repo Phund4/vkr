@@ -25,21 +25,24 @@ type Config struct {
 	// KafkaConsumerGroup группа для чтения топиков ingest.
 	KafkaConsumerGroup string
 
-	// KafkaTopicVideo топик событий ML/видео (опционально; основной путь — HTTP POST /v1/ingest).
+	// KafkaTopicVideo метаданные кадра (router → analytics), без ожидания ML.
 	KafkaTopicVideo string
+
+	// KafkaTopicMLAccidentOut результаты accident-модели (ml-serving → analytics).
+	KafkaTopicMLAccidentOut string
+
+	// KafkaTopicMLCongestionOut результаты congestion-модели (отдельное событие).
+	KafkaTopicMLCongestionOut string
 
 	// KafkaTopicPersist топик нормализованных событий для pusher (ClickHouse/S3).
 	KafkaTopicPersist string
-
-	// IngestMergeTimeout ожидание второй половины ML (incident/congestion) перед публикацией.
-	IngestMergeTimeout time.Duration
 }
 
 // Load читает переменные окружения и возвращает Config с дефолтами.
 func Load() Config {
 	c := Config{
 		ListenAddr:                ":8093",
-		CrashAlertThreshold:       0.5,
+		CrashAlertThreshold:       0.8,
 		CongestionPersistInterval: 2 * time.Second,
 	}
 	if v := strings.TrimSpace(os.Getenv("LISTEN_ADDR")); v != "" {
@@ -68,11 +71,13 @@ func Load() Config {
 	if c.KafkaTopicPersist == "" {
 		c.KafkaTopicPersist = "its.persist.events"
 	}
-	c.IngestMergeTimeout = 5 * time.Second
-	if v := strings.TrimSpace(os.Getenv("INGEST_MERGE_TIMEOUT_SEC")); v != "" {
-		if sec, err := strconv.ParseFloat(v, 64); err == nil && sec > 0 {
-			c.IngestMergeTimeout = time.Duration(sec * float64(time.Second))
-		}
+	c.KafkaTopicMLAccidentOut = strings.TrimSpace(os.Getenv("KAFKA_TOPIC_ML_ACCIDENT_OUT"))
+	if c.KafkaTopicMLAccidentOut == "" {
+		c.KafkaTopicMLAccidentOut = "its.ml.accident.out"
+	}
+	c.KafkaTopicMLCongestionOut = strings.TrimSpace(os.Getenv("KAFKA_TOPIC_ML_CONGESTION_OUT"))
+	if c.KafkaTopicMLCongestionOut == "" {
+		c.KafkaTopicMLCongestionOut = "its.ml.congestion.out"
 	}
 	return c
 }

@@ -23,6 +23,7 @@ type Config struct {
 	Env        string
 	Server     ServerConfig
 	Clickhouse ClickhouseConfig
+	S3         S3Config
 }
 
 // LoadConfig загружает всю конфигурацию из переменных окружения
@@ -47,10 +48,16 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("%w: %w", errLoadClickhouseConfig, err)
 	}
 
+	s3Cfg, err := loadS3Config()
+	if err != nil {
+		return nil, err
+	}
+
 	return &Config{
 		Env:        env,
 		Server:     serverCfg,
 		Metrics:    metricsCfg,
 		Clickhouse: clickhouseCfg,
+		S3:         s3Cfg,
 	}, nil
 }

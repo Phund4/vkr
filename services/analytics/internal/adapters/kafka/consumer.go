@@ -1,12 +1,12 @@
-// Package kafka — консьюмер событий ingest из Kafka (топик видео/ML).
+// Package kafka — консьюмеры Kafka: meta кадра, ML accident/congestion out.
 package kafka
 
 import (
 	"context"
 	"strings"
+	"time"
 
 	zlog "github.com/rs/zerolog/log"
-	"time"
 
 	kafkago "github.com/segmentio/kafka-go"
 
@@ -15,7 +15,6 @@ import (
 	"traffic-analytics/internal/core/services"
 )
 
-// splitBrokers парсит CSV список адресов брокеров Kafka.
 func splitBrokers(s string) []string {
 	var out []string
 	for _, p := range strings.Split(s, ",") {
@@ -27,16 +26,21 @@ func splitBrokers(s string) []string {
 	return out
 }
 
-// RunIngestConsumer читает KAFKA_TOPIC_VIDEO до отмены ctx.
-func RunIngestConsumer(ctx context.Context, ingest *services.IngestService, cfg config.Config) {
+// RunConsumers читает video meta и выходы ML; accident и congestion обрабатываются независимо.
+func RunConsumers(ctx context.Context, ingest *services.IngestService, cfg config.Config) {
 	brokers := splitBrokers(cfg.KafkaBootstrap)
 	if len(brokers) == 0 {
 		return
 	}
+	topics := []string{
+		cfg.KafkaTopicVideo,
+		cfg.KafkaTopicMLAccidentOut,
+		cfg.KafkaTopicMLCongestionOut,
+	}
 	r := kafkago.NewReader(kafkago.ReaderConfig{
 		Brokers:     brokers,
 		GroupID:     cfg.KafkaConsumerGroup,
-		GroupTopics: []string{cfg.KafkaTopicVideo},
+		GroupTopics: topics,
 		MinBytes:    1,
 		MaxBytes:    10e6,
 		MaxWait:     2 * time.Second,
@@ -49,8 +53,9 @@ func RunIngestConsumer(ctx context.Context, ingest *services.IngestService, cfg 
 	zlog.Info().
 		Strs("brokers", brokers).
 		Str("group", cfg.KafkaConsumerGroup).
-		Strs("topics", []string{cfg.KafkaTopicVideo}).
-		Msg("analytics kafka consumer")
+		Strs("topics", topics).
+		Msg("analytics kafka consumers")
+
 	for {
 		m, err := r.ReadMessage(ctx)
 		if err != nil {
@@ -62,9 +67,18 @@ func RunIngestConsumer(ctx context.Context, ingest *services.IngestService, cfg 
 			time.Sleep(time.Second)
 			continue
 		}
-		if err := ingest.ProcessIngest(ctx, m.Value); err != nil {
+		var procErr error
+		switch m.Topic {
+		case cfg.KafkaTopicMLAccidentOut:
+			procErr = ingest.ProcessAccidentResult(ctx, m.Value)
+		case cfg.KafkaTopicMLCongestionOut:
+			procErr = ingest.ProcessCongestionResult(ctx, m.Value)
+		default:
+			procErr = ingest.ProcessVideoMeta(ctx, m.Value)
+		}
+		if procErr != nil {
 			metrics.KafkaConsumeErrors.WithLabelValues(metrics.KafkaConsumeStageProcess).Inc()
-			zlog.Warn().Str("topic", m.Topic).Err(err).Msg("kafka ingest process")
+			zlog.Warn().Str("topic", m.Topic).Err(procErr).Msg("kafka process")
 		} else {
 			metrics.KafkaIngestProcessed.WithLabelValues(m.Topic).Inc()
 		}

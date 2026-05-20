@@ -1,6 +1,6 @@
 package domain
 
-// VideoIngestEvent сообщение в топик its.video.ingest: метаданные кадра без ML (инференс шлёт analytics по HTTP отдельно).
+// VideoIngestEvent сообщение в топик its.video.ingest: метаданные кадра (ML — отдельно через its.ml.*).
 type VideoIngestEvent struct {
 	// SegmentID логический сегмент дороги.
 	SegmentID string `json:"segment_id"`

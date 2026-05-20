@@ -14,8 +14,8 @@ const (
 	frameKeyDateLayout = "2006-01-02"
 	// frameObjectSuffix расширение файла кадра в S3.
 	frameObjectSuffix = ".png"
-	// frameJPEGUploadName имя файла в multipart к ML.
-	frameJPEGUploadName = "frame.jpg"
+	// frameJPEGObjectName логическое имя JPEG-кадра в конвейере.
+	frameJPEGObjectName = "frame.jpg"
 
 	// minFrameChanCapacity минимальная ёмкость канала кадров между читателем и воркерами.
 	minFrameChanCapacity = 4
@@ -30,13 +30,13 @@ const (
 	MetricStageJpegPng = "jpeg_png"
 	// MetricStageS3Put метка ошибки: загрузка в S3.
 	MetricStageS3Put = "s3_put"
-	// MetricStageMLProcess метка ошибки: вызов ML.
-	MetricStageMLProcess = "ml_process"
+	// MetricStageKafkaMLPublish метка ошибки: публикация в Kafka ML in.
+	MetricStageKafkaMLPublish = "kafka_ml_publish"
 
-	// MetricFrameOutcomeMLOk исход кадра: оба ML-вызова успешны.
-	MetricFrameOutcomeMLOk = "ml_ok"
-	// MetricFrameOutcomeMLError исход кадра: сбой хотя бы одного ML.
-	MetricFrameOutcomeMLError = "ml_error"
+	// MetricFrameOutcomeKafkaMLOk исход кадра: публикация в оба топика ML успешна.
+	MetricFrameOutcomeKafkaMLOk = "kafka_ml_ok"
+	// MetricFrameOutcomeKafkaMLError исход кадра: сбой публикации в Kafka ML.
+	MetricFrameOutcomeKafkaMLError = "kafka_ml_error"
 
 	// MetricKafkaPublishStageJSON ошибка сериализации JSON для Kafka.
 	MetricKafkaPublishStageJSON = "json"

@@ -7,6 +7,7 @@ import (
 
 	"data-service/internal/adapters/clickhouse"
 	"data-service/internal/adapters/metrics"
+	s3store "data-service/internal/adapters/s3"
 	"data-service/internal/config"
 	"data-service/internal/core/services"
 	"data-service/internal/logging"
@@ -47,7 +48,16 @@ func (app *App) initConfigAndDependencies(ctx context.Context) {
 		panic(err)
 	}
 
-	service := services.NewRoadDataService(clickhouseRepo)
+	var frameSigner services.FrameURLSigner
+	if cfg.S3.Enabled {
+		presigner, perr := s3store.NewPresigner(ctx, cfg.S3.Endpoint, cfg.S3.Region, cfg.S3.Bucket, cfg.S3.AccessKey, cfg.S3.SecretKey, 0)
+		if perr != nil {
+			panic(perr)
+		}
+		frameSigner = presigner
+	}
+
+	service := services.NewRoadDataService(clickhouseRepo, frameSigner)
 
 	app.deps = deps{
 		log:            &logger,

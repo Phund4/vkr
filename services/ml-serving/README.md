@@ -1,27 +1,27 @@
-# Сервис ml-serving
+# ml-serving
 
-Сервис инференса ML в рантайме (эндпоинт `/v1/process`).
+Две модели (accident / congestion) работают через **Kafka**, без HTTP-вызовов от router:
 
-- Чекпойнты и **`winners.json`** лежат **в этом сервисе**: каталоги **`models/`** и **`artifacts/`** (см. **`models/README.md`**). В Docker образ копируется содержимое этих каталогов; для работы нужны реальные файлы **`.pt`** по путям из `winners.json`.
-- Если **`ACCIDENT_CKPT` / `CONGESTION_CKPT` не заданы**, пути к весам берутся из **`WINNERS_JSON`** (по умолчанию **`models/winners.json`** относительно **`SERVING_ROOT`** / каталога сервиса). Явные переменные в `.env` имеют приоритет.
-- При заданном **`ANALYTICS_INGEST_URL`** (полный URL, например `http://analytics:8093/v1/ingest`) результат инференса дополнительно отправляется в **analytics** (запись в ClickHouse и метрики).
+| Топик | Направление |
+|-------|-------------|
+| `its.ml.accident.in` | router → ml-serving |
+| `its.ml.accident.out` | ml-serving → analytics |
+| `its.ml.congestion.in` | router → ml-serving |
+| `its.ml.congestion.out` | ml-serving → analytics |
 
-## Запуск
+Сообщение in: JSON с `jpeg_base64`, `segment_id`, `camera_id`, `observed_at`, `s3_key`, `pipeline_started_at`.
 
-```bash
-cd services/ml-serving
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn api.main:app --host 0.0.0.0 --port 8000 --no-access-log
-```
+Сообщение out: те же meta + `ml` с одной веткой (`incident` или `congestion`).
 
-Настройки — в **`services/ml-serving/.env`** (или переменные окружения). Запускайте из каталога сервиса или задайте **`SERVING_ROOT`** и абсолютные пути к чекпойнтам и к `WINNERS_JSON`.
+HTTP остаётся только для `/health` и `/metrics`.
 
-## Проверка
+## Переменные
 
-```bash
-curl -s http://127.0.0.1:8000/health
-```
-
-В ответе: `accident_checkpoint`, `congestion_checkpoint`, `winners_json`, флаги `*_from_winners_json`.
+| Переменная | По умолчанию |
+|------------|--------------|
+| `KAFKA_BOOTSTRAP_SERVERS` | — (обязателен) |
+| `KAFKA_TOPIC_ML_ACCIDENT_IN` | `its.ml.accident.in` |
+| `KAFKA_TOPIC_ML_ACCIDENT_OUT` | `its.ml.accident.out` |
+| `KAFKA_TOPIC_ML_CONGESTION_IN` | `its.ml.congestion.in` |
+| `KAFKA_TOPIC_ML_CONGESTION_OUT` | `its.ml.congestion.out` |
+| `CONGESTION_INTERVAL_SEC` | `2` (кеш инференса congestion) |

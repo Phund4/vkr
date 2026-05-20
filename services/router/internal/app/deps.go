@@ -4,14 +4,12 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	zlog "github.com/rs/zerolog/log"
-	"strings"
-	"time"
 
 	coordinatorclient "router/internal/adapters/coordinator"
 	kafkapub "router/internal/adapters/kafka"
-	mlclient "router/internal/adapters/ml"
 	s3store "router/internal/adapters/s3"
 	"router/internal/config"
 )
@@ -55,20 +53,33 @@ func (a *App) initVideoPipeline(ctx context.Context) error {
 		zlog.Info().Str("bucket", a.deps.cfg.S3.Bucket).Msg("bucket ok")
 	}
 	a.deps.store = store
-	to := time.Duration(a.deps.cfg.ML.TimeoutSeconds) * time.Second
-	accPath := strings.TrimSpace(os.Getenv("ML_ACCIDENT_PATH"))
-	congPath := strings.TrimSpace(os.Getenv("ML_CONGESTION_PATH"))
-	a.deps.ml = mlclient.NewDual(a.deps.cfg.ML.BaseURL, accPath, congPath, to)
 
-	if brokers := strings.TrimSpace(os.Getenv("KAFKA_BOOTSTRAP_SERVERS")); brokers != "" {
-		topic := strings.TrimSpace(os.Getenv("KAFKA_TOPIC_VIDEO"))
-		if topic == "" {
-			topic = defaultKafkaTopicVideo
-		}
-		if pub := kafkapub.NewPublisher(brokers, topic); pub != nil {
-			a.deps.videoPub = pub
-			zlog.Info().Str("topic", topic).Msg("router kafka video ingest enabled")
-		}
+	brokers := strings.TrimSpace(os.Getenv("KAFKA_BOOTSTRAP_SERVERS"))
+	if brokers == "" {
+		return fmt.Errorf("KAFKA_BOOTSTRAP_SERVERS is required for ML frame pipeline")
+	}
+	accIn := strings.TrimSpace(os.Getenv("KAFKA_TOPIC_ML_ACCIDENT_IN"))
+	if accIn == "" {
+		accIn = defaultKafkaTopicMLAccidentIn
+	}
+	congIn := strings.TrimSpace(os.Getenv("KAFKA_TOPIC_ML_CONGESTION_IN"))
+	if congIn == "" {
+		congIn = defaultKafkaTopicMLCongestionIn
+	}
+	mlPub := kafkapub.NewMLPublisher(brokers, accIn, congIn)
+	if mlPub == nil {
+		return fmt.Errorf("kafka ML publishers: invalid topics or brokers")
+	}
+	a.deps.mlPub = mlPub
+	zlog.Info().Str("accident_in", accIn).Str("congestion_in", congIn).Msg("router kafka ML ingest enabled")
+
+	topic := strings.TrimSpace(os.Getenv("KAFKA_TOPIC_VIDEO"))
+	if topic == "" {
+		topic = defaultKafkaTopicVideo
+	}
+	if pub := kafkapub.NewPublisher(brokers, topic); pub != nil {
+		a.deps.videoPub = pub
+		zlog.Info().Str("topic", topic).Msg("router kafka video meta enabled")
 	}
 	return nil
 }

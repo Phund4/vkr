@@ -24,7 +24,7 @@ var (
 	CrashAlert = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "analytics_road_crash_alert",
-			Help: "1 if incident rule fired (crash label or probability threshold), else 0.",
+			Help: "1 if crash_probability >= CRASH_ALERT_THRESHOLD, else 0.",
 		},
 		[]string{"segment_id", "camera_id"},
 	)
@@ -49,10 +49,10 @@ var (
 		},
 		[]string{"stage"},
 	)
-	IngestErrors = promauto.NewCounterVec(
+	ProcessErrors = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "analytics_ingest_errors_total",
-			Help: "Ingest handler errors by stage.",
+			Name: "analytics_process_errors_total",
+			Help: "Event processing errors by stage (Kafka ML results, video meta, optional debug handler).",
 		},
 		[]string{"stage"},
 	)
@@ -75,26 +75,6 @@ var (
 			Name:    "analytics_kafka_publish_duration_seconds",
 			Help:    "Time to publish one persist payload to Kafka.",
 			Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2},
-		},
-	)
-	IngestRequests = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "analytics_ingest_requests_total",
-			Help: "POST /v1/ingest completed by HTTP status class.",
-		},
-		[]string{"code"},
-	)
-	IngestDuration = promauto.NewHistogram(
-		prometheus.HistogramOpts{
-			Name:    "analytics_ingest_duration_seconds",
-			Help:    "Wall time for POST /v1/ingest handler (read body, process, Kafka).",
-			Buckets: []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10},
-		},
-	)
-	IngestBodyBytes = promauto.NewCounter(
-		prometheus.CounterOpts{
-			Name: "analytics_ingest_body_bytes_total",
-			Help: "Total bytes read from ingest request bodies.",
 		},
 	)
 )

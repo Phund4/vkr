@@ -6,10 +6,6 @@ const (
 	maxLabelLen           = 128
 	publishRequestTimeout = 8 // секунд — публикация в Kafka
 
-	// mergeKeyPrefixS3 префикс ключа склейки при непустом s3_key.
-	mergeKeyPrefixS3 = "s3:"
-	// mergeKeyFieldSep разделитель частей составного ключа (segment/camera/time).
-	mergeKeyFieldSep = "\x00"
 	// congestionPairKeySep разделитель segment и camera в карте интервалов congestion.
 	congestionPairKeySep = "\x00"
 
@@ -29,7 +25,4 @@ const (
 
 	// kafkaPublishErrorStageWrite стадия ошибки записи в Kafka.
 	kafkaPublishErrorStageWrite = "write"
-
-	// mergeScheduleDefaultSeconds запасной таймаут склейки ML, если конфиг ≤ 0.
-	mergeScheduleDefaultSeconds = 5
 )

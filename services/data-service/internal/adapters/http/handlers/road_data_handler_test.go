@@ -36,6 +36,21 @@ func (s *stubRoadData) ListRoadCongestion(_ context.Context, _ domain.RoadListPa
 	return s.congestion, nil
 }
 
+func (s *stubRoadData) ListIncidentsByCamera(_ context.Context, _ domain.RoadTimeRangeParams) ([]domain.RoadIncident, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	return s.incidents, nil
+}
+
+func (s *stubRoadData) AvgCongestionBySegment(_ context.Context, _ domain.RoadTimeRangeParams) (domain.CongestionAverageResult, error) {
+	return domain.CongestionAverageResult{AvgScore: 0.42, SampleCount: 3}, nil
+}
+
+func (s *stubRoadData) ListFramesByCamera(_ context.Context, _ domain.RoadTimeRangeParams) ([]domain.FrameWithURL, error) {
+	return []domain.FrameWithURL{{FrameRef: domain.FrameRef{S3Key: "k/frame.png"}}}, nil
+}
+
 func TestRoadDataHandler_ListRoadIncidents_OK(t *testing.T) {
 	t.Parallel()
 	e := echo.New()

@@ -16,7 +16,8 @@ type assignmentItemJSON struct {
 
 // assignmentsRespJSON тело ответа coordinator со списком назначений.
 type assignmentsRespJSON struct {
-	Items []assignmentItemJSON `json:"items"`
+	Revision uint64               `json:"revision"`
+	Items    []assignmentItemJSON `json:"items"`
 }
 
 // assignmentItemsToDomain отфильтровывает пустые поля и мапит JSON в domain.Camera.

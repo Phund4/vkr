@@ -2,7 +2,7 @@ package domain
 
 import "encoding/json"
 
-// RoadEvent входящий JSON для POST /v1/ingest.
+// RoadEvent JSON из its.ml.accident.out / its.ml.congestion.out (и опционально POST /v1/ingest для отладки).
 type RoadEvent struct {
 	// SegmentID логический сегмент дороги / линии.
 	SegmentID string `json:"segment_id"`

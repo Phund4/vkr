@@ -12,10 +12,9 @@ type S3Uploader interface {
 	PutPNG(ctx context.Context, key string, png []byte) error
 }
 
-// MLRunner отправляет один JPEG-кадр в два ML-эндпоинта (инцидент и загруженность).
-type MLRunner interface {
-	// PostBoth параллельные multipart POST; filename — имя поля файла (например frame.jpg).
-	PostBoth(ctx context.Context, jpeg []byte, filename string, meta domain.ProcessMeta) error
+// MLFramePublisher отправляет кадр в Kafka-топики its.ml.accident.in и its.ml.congestion.in.
+type MLFramePublisher interface {
+	PublishBoth(ctx context.Context, jpeg []byte, meta domain.ProcessMeta) error
 }
 
 // VideoMetaPublisher публикует JSON метаданных кадра в Kafka (топик видео-контура).

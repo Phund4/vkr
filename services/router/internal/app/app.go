@@ -11,7 +11,8 @@ import (
 
 // App точка входа router: coordinator, пайплайн видео после initVideoPipeline.
 type App struct {
-	deps deps
+	deps   deps
+	assign *assignmentController
 }
 
 // deps агрегирует зависимости рантайма.
@@ -19,7 +20,7 @@ type deps struct {
 	cfg         *config.Root
 	coordinator *coordinatorclient.Client
 	store       *s3store.Client
-	ml          services.MLRunner
+	mlPub       services.MLFramePublisher
 	videoPub    services.VideoMetaPublisher
 }
 

@@ -46,12 +46,12 @@ func frameChanCapacity(processWorkers int) int {
 	return c
 }
 
-// RunCamera бесконечный цикл: RTSP → S3 → параллельно Kafka (метаданные) и два вызова ML.
+// RunCamera бесконечный цикл: RTSP → S3 → параллельно Kafka (мета + два ML in-топика).
 func RunCamera(
 	ctx context.Context,
 	cam domain.Camera,
 	store S3Uploader,
-	ml MLRunner,
+	mlPub MLFramePublisher,
 	videoPub VideoMetaPublisher,
 	s3Prefix string,
 	ffmpegPath string,
@@ -66,7 +66,7 @@ func RunCamera(
 		ctx:             ctx,
 		cam:             cam,
 		store:           store,
-		ml:              ml,
+		mlPub:           mlPub,
 		videoPub:        videoPub,
 		prefix:          strings.Trim(s3Prefix, "/"),
 		ffmpegPath:      ffmpegPath,
@@ -91,7 +91,7 @@ type cameraSession struct {
 	ctx             context.Context
 	cam             domain.Camera
 	store           S3Uploader
-	ml              MLRunner
+	mlPub           MLFramePublisher
 	videoPub        VideoMetaPublisher
 	prefix          string
 	ffmpegPath      string
@@ -228,20 +228,21 @@ func (s *cameraSession) handleFrame(frame []byte) {
 		return nil
 	})
 	g.Go(func() error {
-		if s.ml == nil {
+		if s.mlPub == nil {
 			return nil
 		}
-		metrics.BytesSentML.Add(float64(len(frame)) * 2)
+		metrics.KafkaMLFrameBytes.Add(float64(len(frame)) * 2)
 		mlStart := time.Now()
-		err := s.ml.PostBoth(s.ctx, frame, frameJPEGUploadName, meta)
-		metrics.MLLatencySeconds.Observe(time.Since(mlStart).Seconds())
+		err := s.mlPub.PublishBoth(s.ctx, frame, meta)
+		metrics.KafkaMLPublishDurationSeconds.Observe(time.Since(mlStart).Seconds())
 		if err != nil {
-			metrics.OperationErrors.WithLabelValues(MetricStageMLProcess).Inc()
-			metrics.FramesProcessed.WithLabelValues(MetricFrameOutcomeMLError).Inc()
-			logSourceIssueThrottled(s.lastMLLog, s.logger, "ml process", "err", err)
+			metrics.OperationErrors.WithLabelValues(MetricStageKafkaMLPublish).Inc()
+			metrics.KafkaMLPublishErrors.WithLabelValues(MetricStageKafkaMLPublish).Inc()
+			metrics.FramesProcessed.WithLabelValues(MetricFrameOutcomeKafkaMLError).Inc()
+			logSourceIssueThrottled(s.lastMLLog, s.logger, "kafka ml publish", "err", err)
 			return err
 		}
-		metrics.FramesProcessed.WithLabelValues(MetricFrameOutcomeMLOk).Inc()
+		metrics.FramesProcessed.WithLabelValues(MetricFrameOutcomeKafkaMLOk).Inc()
 		return nil
 	})
 	_ = g.Wait()
