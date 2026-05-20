@@ -2,8 +2,6 @@ package app
 
 import (
 	"context"
-	"os"
-	"time"
 
 	"github.com/rs/zerolog"
 
@@ -11,40 +9,33 @@ import (
 	"data-service/internal/adapters/metrics"
 	"data-service/internal/config"
 	"data-service/internal/core/services"
-)
-
-const (
-	LocalEnvFile = ".env.local"
-	ConfigFile   = ".env"
-	ConfigType   = "env"
+	"data-service/internal/logging"
 )
 
 // deps содержит все зависимости, необходимые для приложения
 type deps struct {
-	log      *zerolog.Logger
-	handlers *handlers
-	services *services.RoadDataService
-	metrics  *metrics.Server
+	log              *zerolog.Logger
+	handlers         *handlers
+	services         *services.RoadDataService
+	metrics          *metrics.Server
+	metricsAdapter   *metrics.PrometheusAdapter
 }
 
 // initConfigAndDependencies загружает конфиг и собирает зависимости приложения.
 func (app *App) initConfigAndDependencies(ctx context.Context) {
-	config.SetupViper(ConfigFile, ConfigType)
-	config.LoadAdditionalEnv(LocalEnvFile)
-
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		panic(err)
 	}
 	app.Cfg = cfg
 
-	zerolog.TimeFieldFormat = time.RFC3339
-	logger := zerolog.New(os.Stderr).With().Timestamp().Logger()
+	logger := logging.NewZerolog("data-service")
 
 	var metricsServer *metrics.Server
+	var promAdapter *metrics.PrometheusAdapter
 	if cfg.Metrics.Enabled {
-		adapter := metrics.NewPrometheusAdapter(cfg.Metrics.Namespace, cfg.Metrics.Subsystem)
-		srv, metricsErr := metrics.NewServer(cfg.Metrics, adapter, &logger)
+		promAdapter = metrics.NewPrometheusAdapter(cfg.Metrics.Namespace, cfg.Metrics.Subsystem)
+		srv, metricsErr := metrics.NewServer(cfg.Metrics, promAdapter, &logger)
 		if metricsErr != nil {
 			logger.Fatal().Err(metricsErr).Msg("failed to initialize metrics server")
 		}
@@ -59,10 +50,11 @@ func (app *App) initConfigAndDependencies(ctx context.Context) {
 	service := services.NewRoadDataService(clickhouseRepo)
 
 	app.deps = deps{
-		log:      &logger,
-		handlers: GetHandlers(service),
-		services: service,
-		metrics:  metricsServer,
+		log:            &logger,
+		handlers:       GetHandlers(service),
+		services:       service,
+		metrics:        metricsServer,
+		metricsAdapter: promAdapter,
 	}
 }
 
@@ -83,7 +75,7 @@ func (app *App) initClickhouseDependency(ctx context.Context) (*clickhouse.Repos
 		return nil, err
 	}
 
-	clickhouseRepo, err := clickhouse.NewRepository(ctx, clickhouseClient)
+	clickhouseRepo, err := clickhouse.NewRepository(ctx, clickhouseClient, app.Cfg.Clickhouse.Database)
 	if err != nil {
 		return nil, err
 	}

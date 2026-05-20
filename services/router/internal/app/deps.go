@@ -3,16 +3,20 @@ package app
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
+
+	zlog "github.com/rs/zerolog/log"
+	"strings"
 	"time"
 
 	coordinatorclient "router/internal/adapters/coordinator"
+	kafkapub "router/internal/adapters/kafka"
 	mlclient "router/internal/adapters/ml"
 	s3store "router/internal/adapters/s3"
 	"router/internal/config"
 )
 
+// initDeps загружает YAML/ENV и создаёт HTTP-клиент coordinator.
 func (a *App) initDeps(ctx context.Context) error {
 	cfg, err := config.LoadFromEnv()
 	if err != nil {
@@ -20,19 +24,20 @@ func (a *App) initDeps(ctx context.Context) error {
 	}
 	base := config.CoordinatorBaseURLFromEnv()
 	if base == "" {
-		return fmt.Errorf("set COORDINATOR_BASE_URL")
+		return ErrCoordinatorBaseURL
 	}
 	if config.CoordinatorZoneIDFromEnv() == "" || config.CoordinatorClusterIDFromEnv() == "" || config.CoordinatorInstanceIDFromEnv() == "" {
-		return fmt.Errorf("set COORDINATOR_ZONE_ID, COORDINATOR_CLUSTER_ID, COORDINATOR_INSTANCE_ID")
+		return ErrCoordinatorIdentity
 	}
 
 	a.deps = deps{
 		cfg:         cfg,
-		coordinator: coordinatorclient.New(base, 10*time.Second),
+		coordinator: coordinatorclient.New(base, coordinatorHTTPTimeout),
 	}
 	return nil
 }
 
+// initVideoPipeline поднимает S3, пару ML-клиентов и опционально Kafka publisher.
 func (a *App) initVideoPipeline(ctx context.Context) error {
 	ak := os.Getenv("AWS_ACCESS_KEY_ID")
 	sk := os.Getenv("AWS_SECRET_ACCESS_KEY")
@@ -47,13 +52,23 @@ func (a *App) initVideoPipeline(ctx context.Context) error {
 		if err := store.EnsureBucket(ctx); err != nil {
 			return fmt.Errorf("ensure bucket: %w", err)
 		}
-		slog.Info("bucket ok", "bucket", a.deps.cfg.S3.Bucket)
+		zlog.Info().Str("bucket", a.deps.cfg.S3.Bucket).Msg("bucket ok")
 	}
 	a.deps.store = store
-	a.deps.ml = mlclient.New(
-		a.deps.cfg.ML.BaseURL,
-		a.deps.cfg.ML.ProcessPath,
-		time.Duration(a.deps.cfg.ML.TimeoutSeconds)*time.Second,
-	)
+	to := time.Duration(a.deps.cfg.ML.TimeoutSeconds) * time.Second
+	accPath := strings.TrimSpace(os.Getenv("ML_ACCIDENT_PATH"))
+	congPath := strings.TrimSpace(os.Getenv("ML_CONGESTION_PATH"))
+	a.deps.ml = mlclient.NewDual(a.deps.cfg.ML.BaseURL, accPath, congPath, to)
+
+	if brokers := strings.TrimSpace(os.Getenv("KAFKA_BOOTSTRAP_SERVERS")); brokers != "" {
+		topic := strings.TrimSpace(os.Getenv("KAFKA_TOPIC_VIDEO"))
+		if topic == "" {
+			topic = defaultKafkaTopicVideo
+		}
+		if pub := kafkapub.NewPublisher(brokers, topic); pub != nil {
+			a.deps.videoPub = pub
+			zlog.Info().Str("topic", topic).Msg("router kafka video ingest enabled")
+		}
+	}
 	return nil
 }

@@ -1,24 +1,26 @@
-// Program analytics — HTTP-приём событий дороги, метрики Prometheus и запись в ClickHouse.
+// Program analytics — HTTP-приём событий дороги, метрики Prometheus и публикация в Kafka для pusher.
 package main
 
 import (
 	"context"
-	"log/slog"
 	"os"
+
+	zlog "github.com/rs/zerolog/log"
 	"os/signal"
 	"syscall"
 
 	"traffic-analytics/internal/app"
+	"traffic-analytics/internal/logging"
 )
 
 func main() {
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo})))
+	logging.InitGlobal("analytics")
 
 	rootCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	if err := app.Run(rootCtx); err != nil {
-		slog.Error("run", "err", err)
+		zlog.Error().Err(err).Msg("run")
 		os.Exit(1)
 	}
 }

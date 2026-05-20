@@ -13,6 +13,9 @@ type RoadEvent struct {
 	// ObservedAt время события RFC3339.
 	ObservedAt string `json:"observed_at"`
 
+	// PipelineStartedAt RFC3339Nano — момент старта конвейера в router (e2e до БД).
+	PipelineStartedAt string `json:"pipeline_started_at,omitempty"`
+
 	// S3Key ключ кадра в S3 при видео-контуре.
 	S3Key string `json:"s3_key,omitempty"`
 
@@ -38,7 +41,7 @@ type CongestionBlock struct {
 	CongestionScore float64 `json:"congestion_score"`
 }
 
-// MLParsed разбор поля ml для метрик и записи в ClickHouse.
+// MLParsed разбор поля ml для метрик и публикации в Kafka (pusher).
 type MLParsed struct {
 	// Incident блок инцидента.
 	Incident IncidentBlock `json:"incident"`

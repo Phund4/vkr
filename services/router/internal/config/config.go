@@ -60,11 +60,14 @@ type Metrics struct {
 	ListenAddr string `yaml:"listen_addr"`
 }
 
-// Camera один RTSP-источник в конфиге.
+// Camera один RTSP-источник в YAML (локальный режим без coordinator).
 type Camera struct {
+	// SegmentID логический сегмент.
 	SegmentID string `yaml:"segment_id"`
-	CameraID  string `yaml:"camera_id"`
-	RTSPURL   string `yaml:"rtsp_url"`
+	// CameraID идентификатор камеры.
+	CameraID string `yaml:"camera_id"`
+	// RTSPURL URL потока.
+	RTSPURL string `yaml:"rtsp_url"`
 }
 
 // ToDomain маппинг конфигурации YAML в домен.
@@ -115,16 +118,8 @@ func Load(path string) (*Root, error) {
 	return &c, nil
 }
 
-// LoadFromEnv подгружает .env (ENV_FILE или .env), затем CONFIG_PATH или config.cameras.yaml по умолчанию.
+// LoadFromEnv читает CONFIG_PATH или config.cameras.yaml по умолчанию.
 func LoadFromEnv() (*Root, error) {
-	envPath := os.Getenv("ENV_FILE")
-	if envPath == "" {
-		envPath = ".env"
-	}
-	if err := tryLoadDotEnv(); err != nil {
-		return nil, err
-	}
-
 	p := os.Getenv("CONFIG_PATH")
 	if p == "" {
 		p = "config.cameras.yaml"

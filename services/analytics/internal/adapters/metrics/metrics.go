@@ -31,23 +31,23 @@ var (
 	IncidentsRecorded = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "analytics_road_incidents_recorded_total",
-			Help: "Rows successfully inserted into ClickHouse incidents table.",
+			Help: "Persist payloads with incident flag published to Kafka.",
 		},
 		[]string{"segment_id", "camera_id"},
 	)
 	CongestionRecorded = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "analytics_road_congestion_recorded_total",
-			Help: "Rows successfully inserted into ClickHouse congestion table.",
+			Help: "Persist payloads with congestion flag published to Kafka.",
 		},
 		[]string{"segment_id", "camera_id"},
 	)
-	ClickHouseErrors = promauto.NewCounterVec(
+	KafkaPublishErrors = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "analytics_clickhouse_errors_total",
-			Help: "ClickHouse client failures by operation.",
+			Name: "analytics_kafka_publish_errors_total",
+			Help: "Kafka persist topic write failures by stage.",
 		},
-		[]string{"op"},
+		[]string{"stage"},
 	)
 	IngestErrors = promauto.NewCounterVec(
 		prometheus.CounterOpts{
@@ -69,5 +69,32 @@ var (
 			Help: "Kafka consumer failures by stage.",
 		},
 		[]string{"stage"},
+	)
+	KafkaPublishDuration = promauto.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "analytics_kafka_publish_duration_seconds",
+			Help:    "Time to publish one persist payload to Kafka.",
+			Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2},
+		},
+	)
+	IngestRequests = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "analytics_ingest_requests_total",
+			Help: "POST /v1/ingest completed by HTTP status class.",
+		},
+		[]string{"code"},
+	)
+	IngestDuration = promauto.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "analytics_ingest_duration_seconds",
+			Help:    "Wall time for POST /v1/ingest handler (read body, process, Kafka).",
+			Buckets: []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10},
+		},
+	)
+	IngestBodyBytes = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "analytics_ingest_body_bytes_total",
+			Help: "Total bytes read from ingest request bodies.",
+		},
 	)
 )

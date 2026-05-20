@@ -1,0 +1,36 @@
+version: "2"
+run:
+  timeout: 5m
+  tests: true
+
+linters-settings:
+  govet:
+    enable-all: true
+    disable:
+      - fieldalignment
+  gocyclo:
+    min-complexity: 15
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+    disabled-checks:
+      - dupImport
+      - whyNoLint
+
+linters:
+  disable-all: true
+  enable:
+    - govet
+    - ineffassign
+    - mnd
+    - staticcheck
+    - unused
+  disable:
+    - errcheck

@@ -2,8 +2,9 @@ package httpserver
 
 import (
 	"context"
-	"log/slog"
 	"net/http"
+
+	zlog "github.com/rs/zerolog/log"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -36,7 +37,7 @@ func Run(ctx context.Context, listenAddr string, svc *services.CoordinatorServic
 		defer cancel()
 		_ = srv.Shutdown(shCtx)
 	}()
-	slog.Info("coordinator starting", "listen", listenAddr)
+	zlog.Info().Str("listen", listenAddr).Msg("coordinator starting")
 	err := srv.ListenAndServe()
 	if err != nil && err != http.ErrServerClosed {
 		return err

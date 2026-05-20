@@ -21,19 +21,22 @@ func ApplyEnvOverrides(c *Root) {
 	}
 }
 
-// CoordinatorBaseURLFromEnv — адрес coordinator API (обязателен).
+// CoordinatorBaseURLFromEnv возвращает базовый URL API coordinator из COORDINATOR_BASE_URL.
 func CoordinatorBaseURLFromEnv() string {
 	return strings.TrimRight(strings.TrimSpace(os.Getenv("COORDINATOR_BASE_URL")), "/")
 }
 
+// CoordinatorZoneIDFromEnv читает COORDINATOR_ZONE_ID.
 func CoordinatorZoneIDFromEnv() string {
 	return strings.TrimSpace(os.Getenv("COORDINATOR_ZONE_ID"))
 }
 
+// CoordinatorClusterIDFromEnv читает COORDINATOR_CLUSTER_ID.
 func CoordinatorClusterIDFromEnv() string {
 	return strings.TrimSpace(os.Getenv("COORDINATOR_CLUSTER_ID"))
 }
 
+// CoordinatorInstanceIDFromEnv читает COORDINATOR_INSTANCE_ID.
 func CoordinatorInstanceIDFromEnv() string {
 	return strings.TrimSpace(os.Getenv("COORDINATOR_INSTANCE_ID"))
 }

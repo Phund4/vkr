@@ -6,6 +6,7 @@ import (
 	"router/internal/core/domain"
 )
 
+// assignmentItemJSON один элемент ответа GET /v1/assignments (внутренний DTO).
 type assignmentItemJSON struct {
 	DataClass string `json:"data_class"`
 	SegmentID string `json:"segment_id"`
@@ -13,10 +14,12 @@ type assignmentItemJSON struct {
 	RTSPURL   string `json:"rtsp_url"`
 }
 
+// assignmentsRespJSON тело ответа coordinator со списком назначений.
 type assignmentsRespJSON struct {
 	Items []assignmentItemJSON `json:"items"`
 }
 
+// assignmentItemsToDomain отфильтровывает пустые поля и мапит JSON в domain.Camera.
 func assignmentItemsToDomain(items []assignmentItemJSON) []domain.Camera {
 	out := make([]domain.Camera, 0, len(items))
 	for _, it := range items {

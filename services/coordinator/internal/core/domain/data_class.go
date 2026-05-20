@@ -1,12 +1,12 @@
 package domain
 
-// Классификатор источника: что приходит и куда ведёт пайплайн router.
+// Классификатор источника: тип данных и целевой пайплайн (например видео → router).
 const (
-	// DataClassRoadSegmentVideo — RTSP с камер дорожного участка → S3 + ML.
+	// DataClassRoadSegmentVideo RTSP с камеры дорожного сегмента; обрабатывается router (S3 + ML).
 	DataClassRoadSegmentVideo = "road_segment_video"
 )
 
-// ValidDataClasses допустимые значения data_class в таблице sources.
+// ValidDataClasses возвращает допустимые значения поля data_class в таблице sources.
 func ValidDataClasses() []string {
 	return []string{
 		DataClassRoadSegmentVideo,

@@ -4,24 +4,26 @@ import (
 	"context"
 
 	coordinatorclient "router/internal/adapters/coordinator"
-	mlclient "router/internal/adapters/ml"
 	s3store "router/internal/adapters/s3"
 	"router/internal/config"
+	"router/internal/core/services"
 )
 
-// App router: coordinator, опционально S3/ML после initVideoPipeline.
+// App точка входа router: coordinator, пайплайн видео после initVideoPipeline.
 type App struct {
 	deps deps
 }
 
+// deps агрегирует зависимости рантайма.
 type deps struct {
 	cfg         *config.Root
 	coordinator *coordinatorclient.Client
 	store       *s3store.Client
-	ml          *mlclient.Client
+	ml          services.MLRunner
+	videoPub    services.VideoMetaPublisher
 }
 
-// New загружает конфиг и клиент coordinator.
+// New загружает конфиг из окружения и инициализирует клиент coordinator.
 func New(ctx context.Context) (*App, error) {
 	a := &App{}
 	if err := a.initDeps(ctx); err != nil {

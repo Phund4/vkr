@@ -2,90 +2,78 @@
 
 Сеть Docker: **`traffic-its`**. Имя проекта Compose: **`traffic-infra`**.
 
-## Запуск и остановка
+Команды из каталога `infra/` — через **`make`** (см. `make help`) или `docker compose` с профилями.
+
+## Профили
+
+| Профиль | Содержимое |
+|---------|------------|
+| **`infra`** | Postgres, Kafka, ClickHouse, MinIO, MediaMTX, rtsp-generator — то же ядро, что в `deploy/k8s`. |
+| **`observability`** | ELK, Prometheus, Grafana, экспортёры, cAdvisor, blackbox — в K8s не разворачивается. |
+| **`apps`** | coordinator, analytics, pusher, data-service, ml-serving, router из `../services/`. |
+
+```bash
+cd infra
+make infra-up              # только ядро
+make observability-up      # ELK + Prometheus (таргеты compose; apps в compose)
+make observability-k8s-up  # то же, но scrape подов из kubectl namespace traffic
+make apps-up               # приложения + зависимости infra
+make stack-up              # infra + apps (как K8s, без observability)
+make stack-full-up         # infra + observability + apps
+```
+
+Остановка: `make infra-down`, `make observability-down`, `make stack-down`.
+
+## Запуск вручную (compose)
 
 ```bash
 cd infra
 docker compose pull
-docker compose up -d
+docker compose --profile infra up -d
+docker compose --profile observability up -d   # ELK + Prometheus + Grafana
 ```
 
 ```bash
-docker compose down
+docker compose --profile infra --profile observability --profile apps down
 ```
 
-### Профиль `ingest` (MediaMTX + видео-симулятор)
+### MediaMTX и rtsp-generator (профиль `infra`)
 
-Поднять только RTSP и публикацию тестовых потоков:
+RTSP и публикация тестовых потоков входят в **`infra`**:
 
 ```bash
-docker compose --profile ingest up -d mediamtx rtsp-generator
+docker compose --profile infra up -d mediamtx rtsp-generator
+docker compose --profile infra stop mediamtx rtsp-generator
 ```
 
-**Остановить** эти контейнеры, не трогая остальной стек (Kafka, ClickHouse и т.д.):
-
-```bash
-docker compose --profile ingest stop mediamtx rtsp-generator
-```
-
-Снова запустить:
-
-```bash
-docker compose --profile ingest start mediamtx rtsp-generator
-```
-
-Удалить контейнеры профиля `ingest` (данные в томах основного стека не затрагиваются):
-
-```bash
-docker compose --profile ingest rm -sf mediamtx rtsp-generator
-```
-
-Данные **PostgreSQL**, **ClickHouse**, **Kafka**, **Elasticsearch**, **MinIO**, **Prometheus** (TSDB) и **Grafana** (в том числе дашборды и настройки, созданные в UI) хранятся в именованных томах и переживают перезапуск контейнеров. Конфиг Prometheus — [`prometheus/prometheus.yml`](prometheus/prometheus.yml); после правок: `docker compose restart prometheus` или lifecycle reload.
+Данные **PostgreSQL**, **ClickHouse**, **Kafka**, **Elasticsearch**, **MinIO**, **Prometheus** (TSDB) и **Grafana** хранятся в именованных томах. Конфиг Prometheus — [`prometheus/prometheus.yml`](prometheus/prometheus.yml).
 
 ## Сервисы и подключение
 
-- **Kafka** (KRaft, без ZooKeeper) — с хоста: `localhost:9092`; внутри сети: `kafka:9092`. Пример: `export KAFKA_BOOTSTRAP_SERVERS=localhost:9092`.
+- **Kafka** (KRaft) — с хоста: `localhost:9092`; в сети: `kafka:9092`.
 
-- **Elasticsearch** — http://localhost:9200 (без логина, dev). Внутри сети: `elasticsearch:9200`.
+- **Elasticsearch** (профиль `observability`) — http://localhost:9200. В сети: `elasticsearch:9200`.
 
-- **Logstash** — приём от Filebeat (Beats) на **5044**, HTTP API на **9600**. Пайплайн: [`logstash/pipeline/logstash.conf`](logstash/pipeline/logstash.conf) → индексы **`traffic-docker-logs-YYYY.MM.DD`** (префикс не `logstash-*`: в ES 8 шаблоны Elastic для `logstash-*` ожидают **data stream** и дают 400 на обычный `index` из Logstash).
+- **Logstash** — Beats **5044**, API **9600**. Пайплайн: [`logstash/pipeline/logstash.conf`](logstash/pipeline/logstash.conf) → индексы **`traffic-docker-logs-YYYY.MM.DD`**.
 
-- **Filebeat** — читает JSON-логи контейнеров Docker и отправляет в Logstash (см. [`filebeat/filebeat.yml`](filebeat/filebeat.yml)): **filestream** по путям `/var/lib/docker/containers/*/*-json.log`, `prospector.scanner.fingerprint.enabled: false`, `compression_level: 0` к Logstash. В `docker-compose.yml` задан явный `command` (`filebeat -e --strict.perms=false -c …`). В Kibana — **Data view** **`traffic-docker-logs-*`**, время **`@timestamp`**. Запасной обход Logstash: [`filebeat/filebeat.direct-es.yml`](filebeat/filebeat.direct-es.yml).
+- **Filebeat** — JSON-логи контейнеров Docker → Logstash ([`filebeat/filebeat.yml`](filebeat/filebeat.yml)). В Kibana — data view **`traffic-docker-logs-*`**.
 
-- **Kibana** — http://localhost:5601 (логи: Discover → data view **`traffic-docker-logs-*`**).
+- **Kibana** — http://localhost:5601.
 
-- **ClickHouse** — HTTP с хоста: `http://localhost:8123`; нативный протокол: `localhost:9000`. Внутри сети: `clickhouse:8123`, `clickhouse:9000`. Пользователь **`default`**, пароль пустой (только dev).
+- **ClickHouse** — HTTP `http://localhost:8123`, нативный `localhost:9000`. Пользователь **`default`**, пароль пустой (dev).
 
-  **JDBC** (драйвер `com.clickhouse.jdbc.ClickHouseDriver`, интерфейс HTTP на порту 8123):
-  - с хоста: `jdbc:clickhouse://localhost:8123/default`
-  - из контейнера в сети `traffic-its`: `jdbc:clickhouse://clickhouse:8123/default`
+  **Имитационный справочник** (`its_infra_sim`): после `make infra-up` — `infra/clickhouse/bootstrap.sh` или one-shot `clickhouse-infra-sim-seed`.
 
-  Пример `clickhouse-client` с хоста: `clickhouse-client --host localhost --port 9000`.
+- **MinIO** — API http://localhost:9050, консоль http://localhost:9051 (`minioadmin` / `minioadmin`).
 
-  **Имитационный справочник** (отдельная БД `its_infra_sim`, не `default`): таблицы `municipalities`, `bus_stops`, `bus_stop_routes`. После `docker compose up -d clickhouse` выполните `infra/clickhouse/bootstrap.sh` (нужен `clickhouse-client` на хосте или Docker compose). Скрипты: [`clickhouse/001_schema.sql`](clickhouse/001_schema.sql), [`clickhouse/002_seed.sql`](clickhouse/002_seed.sql). Проверка: `clickhouse-client -q "SELECT count() FROM its_infra_sim.municipalities"` и `SELECT count() FROM its_infra_sim.bus_stops`.
+- **Prometheus** — http://localhost:9090 ([`prometheus/prometheus.yml`](prometheus/prometheus.yml)).
 
-- **MinIO (S3)** — API с хоста: `http://localhost:9050`; консоль: http://localhost:9051. Учётные данные: **`minioadmin` / `minioadmin`**. Внутри сети: endpoint `http://minio:9000`.
+- **Grafana** — http://localhost:3000 (`admin` / `admin`). Дашборды в [`grafana/provisioning/`](grafana/provisioning/).
 
-- **Prometheus** — http://localhost:9090. Конфиг [`prometheus/prometheus.yml`](prometheus/prometheus.yml): scrape **`/metrics`** у прикладных сервисов в сети `traffic-its` (`router`, `analytics`, `ml-serving`, `coordinator`), экспортёры **Elasticsearch**, **PostgreSQL**, **Kafka**, **ClickHouse**, **`cadvisor`**, **`blackbox-exporter`** (HTTP health `coordinator` / `ml-serving`). Часть таргетов может быть DOWN, если сервис не запущен.
+- **MediaMTX** — `rtsp://localhost:8554`.
 
-- **Grafana** — http://localhost:3000, логин по умолчанию **`admin` / `admin`**. Провижининг из [`grafana/provisioning/`](grafana/provisioning/) (папка дашбордов **Traffic**); том **`grafana-data`**. Дашборды: **`Services`** (`traffic-services`) — конвейер, Kafka, **единая панель ошибок** (метка `source`), data-service RPS, cAdvisor по `container_label_com_docker_compose_service`; **`Results (данные конвейера)`** (`traffic-results`) — загруженность, инциденты, запись в CH/Kafka.
+- **rtsp-generator** — http://localhost:8096 ([`rtsp-generator/README.md`](rtsp-generator/README.md)).
 
-- **MediaMTX** (профиль `ingest`) — `rtsp://localhost:8554`. Запуск: `docker compose --profile ingest up -d --build mediamtx rtsp-generator`.
+При старте `infra` выполняются one-shot: `clickhouse-init`, `minio-init`, `kafka-topics-init`, `clickhouse-infra-sim-seed`.
 
-- **rtsp-generator** (RTSP Studio) — веб-UI **http://localhost:8096**, API для запуска/остановки RTSP-потоков из `../.data/videos/*.mp4` или синтетики; не связан с coordinator (см. [`rtsp-generator/README.md`](rtsp-generator/README.md)).
-
-Профиль **`ingest`** (MediaMTX + видео-симулятор). Пример:
-
-```bash
-docker compose --profile ingest up -d mediamtx rtsp-generator
-```
-
-## Приложения вне compose
-
-**analytics**, **router**, **ml-serving** при необходимости запускаются вручную (см. `.env` в каталогах сервисов): [`services/analytics`](../services/analytics/README.md), [`services/router`](../services/router/README.md), [`services/ml-serving`](../services/ml-serving/README.md). В compose также поднимаются **coordinator** и **router** для полного контура. Для видео: **router** → **ml-serving** → **analytics** → **ClickHouse** (и метрики); при использовании Kafka события могут дублироваться через топик **`its.video.ingest`**.
-
-При старте compose автоматически выполняются one-shot инициализаторы:
-- `clickhouse-init` — создаёт таблицы `default.road_incidents` и `default.road_congestion`;
-- `minio-init` — создаёт бакет `its-frames`.
-
-Тома данных Compose (список имён): `postgres-data`, `zookeeper-data`, `kafka-data`, `es-data`, `clickhouse-data`, `minio-data`, `prometheus-data`, `grafana-data`.
+Тома: `postgres-data`, `kafka-data`, `es-data`, `clickhouse-data`, `minio-data`, `prometheus-data`, `grafana-data`.

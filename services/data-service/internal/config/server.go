@@ -3,7 +3,7 @@ package config
 import "github.com/kelseyhightower/envconfig"
 
 type ServerConfig struct {
-	HTTPServerPort string `envconfig:"PORT"`
+	HTTPServerPort string `envconfig:"PORT" default:":8080"`
 }
 
 // loadServerConfig загружает конфигурацию сервера из переменных окружения

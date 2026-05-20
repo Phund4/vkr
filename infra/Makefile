@@ -7,6 +7,9 @@ REPO_ROOT := $(abspath $(INFRA_DIR)/..)
 
 COMPOSE ?= docker compose
 
+# Профиль observability: ELK + Prometheus + Grafana (без infra; таргеты экспортёров в Prometheus могут быть DOWN).
+OBSERVABILITY_SERVICES := elasticsearch logstash kibana filebeat prometheus grafana
+
 # Сервисы из ../services/ (профиль apps). Для up нужны и infra, и apps — иначе depends_on
 # на kafka-topics-init, postgres и т.д. даёт «undefined service».
 APPS_SERVICES := coordinator analytics pusher data-service ml-serving router
@@ -25,7 +28,7 @@ help: ## Список команд (make из каталога infra или: mak
 	@grep -E '^[a-zA-Z0-9_.-]+:.*?## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}'
 
 .PHONY: infra-up
-infra-up: ## Поднять инфраструктуру (postgres, kafka, clickhouse, minio, ELK, prometheus, …)
+infra-up: ## Ядро infra (как в K8s): postgres, kafka, clickhouse, minio, mediamtx, rtsp-generator
 	cd $(INFRA_DIR) && $(COMPOSE) --profile infra up -d
 
 .PHONY: infra-down
@@ -35,6 +38,31 @@ infra-down: ## Остановить сервисы профиля infra
 .PHONY: infra-logs
 infra-logs: ## Логи профиля infra
 	cd $(INFRA_DIR) && $(COMPOSE) --profile infra logs -f
+
+.PHONY: observability-up
+observability-up: ## Только observability: ELK + Prometheus + Grafana (таргеты compose)
+	cd $(INFRA_DIR) && $(COMPOSE) --profile observability up -d $(OBSERVABILITY_SERVICES)
+
+PROM_K8S_COMPOSE := -f docker-compose.yml -f docker-compose.prometheus-k8s.yml
+
+.PHONY: prometheus-kubeconfig
+prometheus-kubeconfig: ## kubeconfig для Prometheus в Docker → API Kubernetes (Rancher Desktop)
+	@mkdir -p $(INFRA_DIR)/prometheus
+	@kubectl config view --raw --minify --flatten | \
+	  sed 's|https://127.0.0.1:|https://host.docker.internal:|g; s|https://localhost:|https://host.docker.internal:|g' \
+	  > $(INFRA_DIR)/prometheus/kubeconfig.docker
+
+.PHONY: observability-k8s-up
+observability-k8s-up: prometheus-kubeconfig ## observability + scrape приложений из kubectl (namespace traffic)
+	cd $(INFRA_DIR) && $(COMPOSE) $(PROM_K8S_COMPOSE) --profile observability up -d $(OBSERVABILITY_SERVICES)
+
+.PHONY: observability-down
+observability-down: ## Остановить observability (infra не трогаем)
+	cd $(INFRA_DIR) && $(COMPOSE) --profile observability stop $(OBSERVABILITY_SERVICES)
+
+.PHONY: observability-logs
+observability-logs: ## Логи observability
+	cd $(INFRA_DIR) && $(COMPOSE) --profile observability logs -f $(OBSERVABILITY_SERVICES)
 
 .PHONY: apps-up
 apps-up: ## Поднять только приложения из services/ + их зависимости (оба профиля в графе compose)
@@ -49,24 +77,42 @@ apps-logs: ## Логи приложений из services/
 	cd $(INFRA_DIR) && $(COMPOSE) --profile infra --profile apps logs -f $(APPS_SERVICES)
 
 .PHONY: sync-ml-artifacts
-sync-ml-artifacts: ## Скопировать best.pt из $(REPO_ROOT)/artifacts в .data/artifacts для volume ml-serving
+sync-ml-artifacts: ## best.pt → .data/artifacts (источник: artifacts/, .data/artifacts или services/ml-serving/artifacts/)
 	@set -e; \
-	a="$(REPO_ROOT)/artifacts/accident/baseline-cnn/best.pt"; \
-	c="$(REPO_ROOT)/artifacts/congestion/tiny-cnn/best.pt"; \
-	test -f "$$a" || (echo "sync-ml-artifacts: нет файла $$a" >&2; exit 1); \
-	test -f "$$c" || (echo "sync-ml-artifacts: нет файла $$c" >&2; exit 1); \
-	mkdir -p "$(REPO_ROOT)/.data/artifacts/accident/baseline-cnn" "$(REPO_ROOT)/.data/artifacts/congestion/tiny-cnn"; \
-	cp -f "$$a" "$(REPO_ROOT)/.data/artifacts/accident/baseline-cnn/"; \
-	cp -f "$$c" "$(REPO_ROOT)/.data/artifacts/congestion/tiny-cnn/"; \
-	echo "sync-ml-artifacts: OK → $(REPO_ROOT)/.data/artifacts"
+	ROOT="$(REPO_ROOT)"; \
+	DACC="$$ROOT/.data/artifacts/accident/baseline-cnn/best.pt"; \
+	DCONG="$$ROOT/.data/artifacts/congestion/tiny-cnn/best.pt"; \
+	if test -f "$$DACC" && test -f "$$DCONG"; then \
+		echo "sync-ml-artifacts: уже есть в $$ROOT/.data/artifacts"; \
+		exit 0; \
+	fi; \
+	mkdir -p "$$ROOT/.data/artifacts/accident/baseline-cnn" "$$ROOT/.data/artifacts/congestion/tiny-cnn"; \
+	acc=""; cong=""; \
+	for base in "$$ROOT/artifacts" "$$ROOT/services/ml-serving/artifacts"; do \
+		if test -z "$$acc" && test -f "$$base/accident/baseline-cnn/best.pt"; then acc="$$base/accident/baseline-cnn/best.pt"; fi; \
+		if test -z "$$cong" && test -f "$$base/congestion/tiny-cnn/best.pt"; then cong="$$base/congestion/tiny-cnn/best.pt"; fi; \
+	done; \
+	if test -z "$$acc" || test -z "$$cong"; then \
+		echo "sync-ml-artifacts: нужны оба best.pt. Положите в один из каталогов:" >&2; \
+		echo "  $$ROOT/artifacts/accident/baseline-cnn/best.pt" >&2; \
+		echo "  $$ROOT/artifacts/congestion/tiny-cnn/best.pt" >&2; \
+		echo "  (или уже в $$ROOT/.data/artifacts/...)" >&2; \
+		exit 1; \
+	fi; \
+	cp -f "$$acc" "$$DACC"; cp -f "$$cong" "$$DCONG"; \
+	echo "sync-ml-artifacts: OK ← $$(dirname "$$acc")/... → $$ROOT/.data/artifacts"
 
 .PHONY: stack-up
-stack-up: ## Весь стек: infra + apps (--build для приложений)
+stack-up: ## Контур как в K8s: infra + apps (--build для приложений, без observability)
 	cd $(INFRA_DIR) && $(COMPOSE) --profile infra --profile apps up -d --build
 
+.PHONY: stack-full-up
+stack-full-up: ## infra + observability + apps (--build)
+	cd $(INFRA_DIR) && $(COMPOSE) --profile infra --profile observability --profile apps up -d --build
+
 .PHONY: stack-down
-stack-down: ## Остановить весь compose-проект
-	cd $(INFRA_DIR) && $(COMPOSE) down
+stack-down: ## Остановить весь compose-проект (все профили)
+	cd $(INFRA_DIR) && $(COMPOSE) --profile infra --profile observability --profile apps down
 
 .PHONY: stack-logs
 stack-logs: ## Логи всех контейнеров проекта

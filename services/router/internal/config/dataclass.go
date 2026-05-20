@@ -1,6 +1,7 @@
 package config
 
-// Значения data_class из coordinator (таблица sources), совпадают с traffic-coordinator/domain.
+// Константы data_class для запросов к coordinator (согласованы с coordinator/domain).
 const (
+	// DataClassRoadSegmentVideo видео с дорожного сегмента → router.
 	DataClassRoadSegmentVideo = "road_segment_video"
 )

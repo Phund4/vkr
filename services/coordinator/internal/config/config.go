@@ -14,9 +14,6 @@ type Root struct {
 
 // LoadFromEnv загружает конфиг из переменных окружения.
 func LoadFromEnv() (*Root, error) {
-	if err := tryLoadDotEnv(); err != nil {
-		return nil, err
-	}
 	listen := strings.TrimSpace(os.Getenv("LISTEN_ADDR"))
 	if listen == "" {
 		listen = ":8098"

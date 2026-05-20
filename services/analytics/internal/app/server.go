@@ -3,8 +3,9 @@ package app
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net"
+
+	zlog "github.com/rs/zerolog/log"
 	"net/http"
 
 	httpx "traffic-analytics/internal/adapters/http"
@@ -24,11 +25,11 @@ func RunHTTPServer(rootCtx context.Context, deps *Deps) error {
 
 	errCh := make(chan error, 1)
 	go func() {
-		slog.Info("analytics starting",
-			"listen", deps.Config.ListenAddr,
-			"clickhouse", deps.CHAddr,
-			"congestion_persist_interval", deps.Config.CongestionPersistInterval.String(),
-		)
+		zlog.Info().
+			Str("listen", deps.Config.ListenAddr).
+			Str("kafka_persist_topic", deps.Config.KafkaTopicPersist).
+			Str("congestion_persist_interval", deps.Config.CongestionPersistInterval.String()).
+			Msg("analytics starting")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			errCh <- err
 		}
@@ -40,12 +41,12 @@ func RunHTTPServer(rootCtx context.Context, deps *Deps) error {
 	case <-rootCtx.Done():
 	}
 
-	slog.Info("analytics shutdown signal received")
+	zlog.Info().Msg("analytics shutdown signal received")
 	shCtx, cancel := context.WithTimeout(context.Background(), httpServerShutdown)
 	defer cancel()
 	if err := srv.Shutdown(shCtx); err != nil {
-		slog.Warn("graceful shutdown", "err", err)
+		zlog.Warn().Err(err).Msg("graceful shutdown")
 	}
-	slog.Info("analytics stopped")
+	zlog.Info().Msg("analytics stopped")
 	return nil
 }

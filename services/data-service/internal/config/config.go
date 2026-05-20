@@ -4,9 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-
-	"github.com/joho/godotenv"
-	"github.com/spf13/viper"
 )
 
 var (
@@ -14,7 +11,6 @@ var (
 	ErrMissingEnvVariable   = errors.New("missing environment variable")
 	ErrLoadServerConfig     = errors.New("failed to load server config")
 	errLoadClickhouseConfig = errors.New("failed to load clickhouse config")
-	ErrEnvVarFromFile       = errors.New("couldn't get environment variables from file")
 )
 
 const (
@@ -57,25 +53,4 @@ func LoadConfig() (*Config, error) {
 		Metrics:    metricsCfg,
 		Clickhouse: clickhouseCfg,
 	}, nil
-}
-
-// SetupViper настраивает Viper для чтения переменных окружения.
-func SetupViper(configFile, configType string) error {
-	if err := godotenv.Load(configFile); err != nil {
-		return fmt.Errorf("%w: %w", ErrEnvVarFromFile, err)
-	}
-
-	viper.SetConfigFile(configFile)
-	viper.SetConfigType(configType)
-	viper.AutomaticEnv()
-
-	return nil
-}
-
-// LoadAdditionalEnv загружает дополнительный .env файл поверх уже загруженных
-func LoadAdditionalEnv(configFile string) error {
-	if err := godotenv.Load(configFile); err != nil {
-		return fmt.Errorf("%w: %w", ErrEnvVarFromFile, err)
-	}
-	return nil
 }

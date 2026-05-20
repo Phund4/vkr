@@ -3,7 +3,6 @@ package mlclient
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -13,19 +12,14 @@ import (
 	"router/internal/core/domain"
 )
 
-// Client HTTP-клиент к сервису машинного обучения.
+// Client HTTP-клиент к одному эндпоинту ML (multipart JPEG + поля метаданных).
 type Client struct {
-	// base корневой URL ML без завершающего слэша.
-	base string
-
-	// processPath путь POST multipart (например /v1/process).
+	base        string
 	processPath string
-
-	// cli HTTP с таймаутом из конструктора.
-	cli *http.Client
+	cli         *http.Client
 }
 
-// New создаёт клиент с baseURL, путём process и таймаутом HTTP.
+// New создаёт клиент с baseURL, относительным processPath и таймаутом HTTP.
 func New(baseURL, processPath string, timeout time.Duration) *Client {
 	baseURL = strings.TrimRight(baseURL, "/")
 	return &Client{
@@ -35,18 +29,19 @@ func New(baseURL, processPath string, timeout time.Duration) *Client {
 	}
 }
 
-// PostProcess отправляет JPEG-кадр в ML. При шлюзе с 204 тело ответа пустое.
+// PostProcess отправляет JPEG в ML; при 204 тело ответа игнорируется.
 func (c *Client) PostProcess(ctx context.Context, jpeg []byte, filename string, meta domain.ProcessMeta) error {
 	return c.postMultipart(ctx, c.processPath, jpeg, filename, meta)
 }
 
+// postMultipart собирает multipart/form-data и выполняет POST.
 func (c *Client) postMultipart(ctx context.Context, path string, jpeg []byte, filename string, meta domain.ProcessMeta) error {
 	if !strings.HasPrefix(path, "/") {
 		path = "/" + path
 	}
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
-	part, err := w.CreateFormFile("image", filename)
+	part, err := w.CreateFormFile(formFieldImage, filename)
 	if err != nil {
 		return err
 	}
@@ -54,16 +49,19 @@ func (c *Client) postMultipart(ctx context.Context, path string, jpeg []byte, fi
 		return err
 	}
 	if meta.SegmentID != "" {
-		_ = w.WriteField("segment_id", meta.SegmentID)
+		_ = w.WriteField(formFieldSegmentID, meta.SegmentID)
 	}
 	if meta.CameraID != "" {
-		_ = w.WriteField("camera_id", meta.CameraID)
+		_ = w.WriteField(formFieldCameraID, meta.CameraID)
 	}
 	if meta.S3Key != "" {
-		_ = w.WriteField("s3_key", meta.S3Key)
+		_ = w.WriteField(formFieldS3Key, meta.S3Key)
 	}
 	if meta.ObservedAt != "" {
-		_ = w.WriteField("observed_at", meta.ObservedAt)
+		_ = w.WriteField(formFieldObservedAt, meta.ObservedAt)
+	}
+	if meta.PipelineStartedAt != "" {
+		_ = w.WriteField(formFieldPipelineStartedAt, meta.PipelineStartedAt)
 	}
 	if err := w.Close(); err != nil {
 		return err
@@ -72,15 +70,15 @@ func (c *Client) postMultipart(ctx context.Context, path string, jpeg []byte, fi
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Content-Type", w.FormDataContentType())
+	req.Header.Set(headerContentType, w.FormDataContentType())
 	resp, err := c.cli.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, httpErrorBodyMaxBytes))
+		return mlHTTPError(resp.StatusCode, strings.TrimSpace(string(b)))
 	}
 	_, _ = io.Copy(io.Discard, resp.Body)
 	return nil

@@ -27,6 +27,3 @@ local/
 
 # VSCode
 .vscode/
-
-# env file
-.env

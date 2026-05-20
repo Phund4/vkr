@@ -2,8 +2,9 @@ package httpmetrics
 
 import (
 	"context"
-	"log/slog"
 	"net"
+
+	zlog "github.com/rs/zerolog/log"
 	"net/http"
 	"time"
 
@@ -28,16 +29,16 @@ func RunMetricsServer(ctx context.Context, listenAddr string) error {
 
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error("metrics server", "err", err)
+			zlog.Error().Err(err).Msg("metrics server")
 		}
 	}()
 
 	<-ctx.Done()
-	slog.Info("router shutdown signal, stopping metrics server")
+	zlog.Info().Msg("router shutdown signal, stopping metrics server")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		slog.Warn("metrics server shutdown", "err", err)
+		zlog.Warn().Err(err).Msg("metrics server shutdown")
 	}
 	return nil
 }

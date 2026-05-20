@@ -1,13 +1,16 @@
-# Секреты и локальные настройки (все каталоги)
+# Локальные секреты и overrides (в Docker — environment в infra/docker-compose.yml)
 .env
-**/.env
+.env.*
+!.env.example
 
 .venv/
 venv/
 __pycache__/
 *.py[cod]
 .DS_Store
+.cursor/
 .data/
+infra/prometheus/kubeconfig.docker
 # Тяжёлые веса (структура каталогов — через .gitkeep)
 services/ml-serving/artifacts/**/*.pt
 services/ml-serving/artifacts/**/*.pth
