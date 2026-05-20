@@ -18,6 +18,9 @@ apply_manifest() {
   sed "s|__PIIS_REPO_ROOT__|${ROOT}|g" "${K8S_DIR}/${rel}" | kubectl apply -n "$NS" -f -
 }
 
+# Namespace должен существовать до ConfigMap и ресурсов с -n traffic.
+sed "s|__PIIS_REPO_ROOT__|${ROOT}|g" "${K8S_DIR}/namespace.yaml" | kubectl apply -f -
+
 apply_configmap postgres-init \
   --from-file="${ROOT}/infra/postgres/init/001_coordinator_schema.sql" \
   --from-file="${ROOT}/infra/postgres/init/002_coordinator_seed.sql"
@@ -58,5 +61,8 @@ RESOURCES=(
 )
 
 for rel in "${RESOURCES[@]}"; do
+  if [[ "$rel" == "namespace.yaml" ]]; then
+    continue
+  fi
   apply_manifest "$rel"
 done

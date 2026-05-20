@@ -47,12 +47,14 @@ spec:
                   key: minio-secret-key
             - name: S3_ENDPOINT
               value: http://minio:9000
-            - name: ML_BASE_URL
-              value: http://ml-serving:8000
             - name: KAFKA_BOOTSTRAP_SERVERS
               value: kafka:9092
             - name: KAFKA_TOPIC_VIDEO
               value: its.video.ingest
+            - name: KAFKA_TOPIC_ML_ACCIDENT_IN
+              value: its.ml.accident.in
+            - name: KAFKA_TOPIC_ML_CONGESTION_IN
+              value: its.ml.congestion.in
           volumeMounts:
             - name: config
               mountPath: /app/config.cameras.docker.yaml
