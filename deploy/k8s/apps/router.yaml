@@ -35,22 +35,12 @@ spec:
               value: cluster-1
             - name: COORDINATOR_INSTANCE_ID
               value: ingest-a1
-            - name: AWS_ACCESS_KEY_ID
-              valueFrom:
-                secretKeyRef:
-                  name: traffic-secrets
-                  key: minio-access-key
-            - name: AWS_SECRET_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: traffic-secrets
-                  key: minio-secret-key
-            - name: S3_ENDPOINT
-              value: http://minio:9000
             - name: KAFKA_BOOTSTRAP_SERVERS
               value: kafka:9092
             - name: KAFKA_TOPIC_VIDEO
               value: its.video.ingest
+            - name: KAFKA_TOPIC_FRAMES
+              value: its.frames.ingest
             - name: KAFKA_TOPIC_ML_ACCIDENT_IN
               value: its.ml.accident.in
             - name: KAFKA_TOPIC_ML_CONGESTION_IN

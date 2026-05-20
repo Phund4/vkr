@@ -38,6 +38,8 @@ spec:
               value: pusher
             - name: KAFKA_TOPIC_PERSIST
               value: its.persist.events
+            - name: KAFKA_TOPIC_FRAMES
+              value: its.frames.ingest
             - name: CLICKHOUSE_ADDR
               value: clickhouse:9000
             - name: CLICKHOUSE_DATABASE

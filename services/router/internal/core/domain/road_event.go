@@ -1,15 +1,10 @@
 package domain
 
-// VideoIngestEvent сообщение в топик its.video.ingest: метаданные кадра (ML — отдельно через its.ml.*).
+// VideoIngestEvent сообщение в топик its.video.ingest: метаданные кадра (без тела; ML — its.ml.*).
 type VideoIngestEvent struct {
-	// SegmentID логический сегмент дороги.
-	SegmentID string `json:"segment_id"`
-	// CameraID идентификатор камеры.
-	CameraID string `json:"camera_id"`
-	// ObservedAt время наблюдения кадра (RFC3339Nano).
-	ObservedAt string `json:"observed_at"`
-	// S3Key ключ PNG-объекта в бакете.
-	S3Key string `json:"s3_key,omitempty"`
-	// PipelineStartedAt момент старта конвейера в router для e2e-метрик.
+	SegmentID         string `json:"segment_id"`
+	CameraID          string `json:"camera_id"`
+	ObservedAt        string `json:"observed_at"`
+	S3Key             string `json:"s3_key,omitempty"`
 	PipelineStartedAt string `json:"pipeline_started_at,omitempty"`
 }

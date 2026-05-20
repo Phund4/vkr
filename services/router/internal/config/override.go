@@ -7,8 +7,8 @@ import (
 
 // ApplyEnvOverrides перезаписывает поля конфига значениями из переменных окружения.
 func ApplyEnvOverrides(c *Root) {
-	if v := os.Getenv("S3_ENDPOINT"); v != "" {
-		c.S3.Endpoint = strings.TrimRight(v, "/")
+	if v := os.Getenv("STORAGE_PREFIX"); v != "" {
+		c.Storage.Prefix = strings.Trim(v, "/")
 	}
 	if v := os.Getenv("METRICS_LISTEN_ADDR"); v != "" {
 		c.Metrics.ListenAddr = v

@@ -15,16 +15,16 @@ var (
 		[]string{"stage"},
 	)
 
-	// FramesProcessed исход обработки кадра (после попытки S3+Kafka ML).
+	// FramesProcessed исход обработки кадра (Kafka ML publish).
 	FramesProcessed = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "router_frames_processed_total",
-			Help: "Frames processed by outcome (kafka_ml_ok / kafka_ml_error; s3 may have failed earlier).",
+			Help: "Frames processed by outcome (kafka_ml_ok / kafka_ml_error).",
 		},
 		[]string{"outcome"},
 	)
 
-	// FrameHandleSeconds полное время handleFrame (JPEG→PNG→S3→Kafka ML).
+	// FrameHandleSeconds полное время handleFrame (JPEG→PNG→Kafka).
 	FrameHandleSeconds = promauto.NewHistogram(
 		prometheus.HistogramOpts{
 			Name:    "router_frame_handle_duration_seconds",
@@ -33,11 +33,11 @@ var (
 		},
 	)
 
-	// BytesUploadedS3 успешные PutPNG (после успешного Put).
-	BytesUploadedS3 = promauto.NewCounter(
+	// KafkaFrameBytes суммарный размер PNG, опубликованный в its.frames.ingest.
+	KafkaFrameBytes = promauto.NewCounter(
 		prometheus.CounterOpts{
-			Name: "router_bytes_uploaded_s3_total",
-			Help: "Total bytes written to S3 (PNG objects).",
+			Name: "router_kafka_frame_bytes_total",
+			Help: "Total PNG bytes published to Kafka frames ingest topic (decoded payload size).",
 		},
 	)
 
@@ -70,6 +70,14 @@ var (
 		prometheus.CounterOpts{
 			Name: "router_kafka_video_publish_errors_total",
 			Help: "Failures publishing frame metadata to its.video.ingest.",
+		},
+		[]string{"stage"},
+	)
+
+	KafkaFramesPublishErrors = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "router_kafka_frames_publish_errors_total",
+			Help: "Failures publishing frame to its.frames.ingest.",
 		},
 		[]string{"stage"},
 	)

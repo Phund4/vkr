@@ -68,4 +68,17 @@ var (
 			Buckets: []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10},
 		},
 	)
+	FrameProcessDurationSeconds = promauto.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "pusher_frame_process_duration_seconds",
+			Help:    "Wall time to process one frames.ingest message (S3 put only).",
+			Buckets: []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10},
+		},
+	)
+	S3BytesUploaded = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "pusher_s3_bytes_uploaded_total",
+			Help: "Bytes written to S3 (frames topic and persist files).",
+		},
+	)
 )

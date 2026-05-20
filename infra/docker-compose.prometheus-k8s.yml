@@ -1,8 +1,0 @@
-# Override для make observability-k8s-up: Prometheus скрейпит поды в namespace traffic.
-services:
-  prometheus:
-    volumes:
-      - ./prometheus/prometheus.k8s.yml:/etc/prometheus/prometheus.yml:ro
-      - ./prometheus/kubeconfig.docker:/etc/prometheus/kubeconfig:ro
-    extra_hosts:
-      - "host.docker.internal:host-gateway"

@@ -25,18 +25,18 @@ func splitBrokers(s string) []string {
 	return out
 }
 
-// RunPersistConsumer читает топик persist до отмены ctx.
-func RunPersistConsumer(ctx context.Context, push *services.PushService, cfg *config.Config, log *zerolog.Logger) {
+// RunConsumers читает its.frames.ingest и its.persist.events до отмены ctx.
+func RunConsumers(ctx context.Context, push *services.PushService, cfg *config.Config, log *zerolog.Logger) {
 	brokers := splitBrokers(cfg.Kafka.Bootstrap)
 	if len(brokers) == 0 {
 		log.Warn().Msg("KAFKA_BOOTSTRAP_SERVERS empty, consumer not started")
 		return
 	}
-	topic := cfg.Kafka.TopicPersist
+	topics := []string{cfg.Kafka.TopicFrames, cfg.Kafka.TopicPersist}
 	r := kafkago.NewReader(kafkago.ReaderConfig{
 		Brokers:     brokers,
 		GroupID:     cfg.Kafka.ConsumerGroup,
-		GroupTopics: []string{topic},
+		GroupTopics: topics,
 		MinBytes:    1,
 		MaxBytes:    10e6,
 		MaxWait:     2 * time.Second,
@@ -50,7 +50,7 @@ func RunPersistConsumer(ctx context.Context, push *services.PushService, cfg *co
 	log.Info().
 		Strs("brokers", brokers).
 		Str("group", cfg.Kafka.ConsumerGroup).
-		Str("topic", topic).
+		Strs("topics", topics).
 		Msg("pusher kafka consumer started")
 
 	for {
@@ -64,9 +64,16 @@ func RunPersistConsumer(ctx context.Context, push *services.PushService, cfg *co
 			time.Sleep(time.Second)
 			continue
 		}
-		if err := push.ProcessMessage(ctx, m.Value); err != nil {
+		var procErr error
+		switch m.Topic {
+		case cfg.Kafka.TopicFrames:
+			procErr = push.ProcessFrameMessage(ctx, m.Value)
+		default:
+			procErr = push.ProcessMessage(ctx, m.Value)
+		}
+		if procErr != nil {
 			metrics.KafkaConsumeErrors.WithLabelValues(metrics.KafkaConsumeStageProcess).Inc()
-			log.Warn().Err(err).Str("topic", m.Topic).Msg("persist process")
+			log.Warn().Err(err).Str("topic", m.Topic).Msg("kafka process")
 			continue
 		}
 		metrics.KafkaMessagesProcessed.WithLabelValues(m.Topic).Inc()

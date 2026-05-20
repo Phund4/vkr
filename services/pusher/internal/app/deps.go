@@ -80,5 +80,5 @@ func (app *App) Logger() *zerolog.Logger {
 
 // RunKafkaConsumer фоновый consumer (вызывается из Run).
 func (app *App) RunKafkaConsumer(ctx context.Context) {
-	kafkaconsumer.RunPersistConsumer(ctx, app.deps.push, app.Cfg, app.deps.log)
+	kafkaconsumer.RunConsumers(ctx, app.deps.push, app.Cfg, app.deps.log)
 }

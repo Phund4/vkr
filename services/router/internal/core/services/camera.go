@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,8 +17,8 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"router/internal/adapters/capture"
+	"router/internal/adapters/image"
 	"router/internal/adapters/metrics"
-	s3store "router/internal/adapters/s3"
 	"router/internal/core/domain"
 )
 
@@ -46,14 +47,14 @@ func frameChanCapacity(processWorkers int) int {
 	return c
 }
 
-// RunCamera бесконечный цикл: RTSP → S3 → параллельно Kafka (мета + два ML in-топика).
+// RunCamera бесконечный цикл: RTSP → Kafka (video meta + кадр для pusher + ML in-топики).
 func RunCamera(
 	ctx context.Context,
 	cam domain.Camera,
-	store S3Uploader,
-	mlPub MLFramePublisher,
+	framePub FramePublisher,
 	videoPub VideoMetaPublisher,
-	s3Prefix string,
+	mlPub MLFramePublisher,
+	keyPrefix string,
 	ffmpegPath string,
 	targetFPS float64,
 	processWorkers int,
@@ -65,10 +66,10 @@ func RunCamera(
 	s := &cameraSession{
 		ctx:             ctx,
 		cam:             cam,
-		store:           store,
-		mlPub:           mlPub,
+		framePub:        framePub,
 		videoPub:        videoPub,
-		prefix:          strings.Trim(s3Prefix, "/"),
+		mlPub:           mlPub,
+		prefix:          strings.Trim(keyPrefix, "/"),
 		ffmpegPath:      ffmpegPath,
 		targetFPS:       targetFPS,
 		processWorkers:  processWorkers,
@@ -90,9 +91,9 @@ func RunCamera(
 type cameraSession struct {
 	ctx             context.Context
 	cam             domain.Camera
-	store           S3Uploader
-	mlPub           MLFramePublisher
+	framePub        FramePublisher
 	videoPub        VideoMetaPublisher
+	mlPub           MLFramePublisher
 	prefix          string
 	ffmpegPath      string
 	targetFPS       float64
@@ -168,7 +169,7 @@ func (s *cameraSession) readFramesIntoChannel(subCtx context.Context, sc *captur
 	}
 }
 
-// handleFrame конвертирует JPEG в PNG, кладёт в S3, публикует метаданные в Kafka и вызывает оба ML.
+// handleFrame конвертирует JPEG в PNG, публикует кадр в Kafka для pusher и вызывает оба ML.
 func (s *cameraSession) handleFrame(frame []byte) {
 	handleStart := time.Now()
 	defer func() {
@@ -182,17 +183,11 @@ func (s *cameraSession) handleFrame(frame []byte) {
 	ts := now.UnixNano()
 	key := fmt.Sprintf("%s/%s/%s/frame_%d%s", s.prefix, day, s.cam.CameraID, ts, frameObjectSuffix)
 
-	pngBytes, err := s3store.JPEGBytesToPNG(frame)
+	pngBytes, err := image.JPEGBytesToPNG(frame)
 	if err != nil {
 		metrics.OperationErrors.WithLabelValues(MetricStageJpegPng).Inc()
 		s.logger.Error().Err(err).Msg("jpeg to png")
 		return
-	}
-	if err := s.store.PutPNG(s.ctx, key, pngBytes); err != nil {
-		metrics.OperationErrors.WithLabelValues(MetricStageS3Put).Inc()
-		s.logger.Error().Str("key", key).Err(err).Msg("s3 put")
-	} else {
-		metrics.BytesUploadedS3.Add(float64(len(pngBytes)))
 	}
 
 	meta := domain.ProcessMeta{
@@ -225,6 +220,27 @@ func (s *cameraSession) handleFrame(frame []byte) {
 			s.logger.Warn().Err(err).Msg("kafka video ingest")
 			return err
 		}
+		return nil
+	})
+	g.Go(func() error {
+		if s.framePub == nil {
+			return nil
+		}
+		ev := domain.FrameIngestEvent{
+			SegmentID:         s.cam.SegmentID,
+			CameraID:          s.cam.CameraID,
+			ObservedAt:        pipelineStart,
+			PipelineStartedAt: pipelineStart,
+			S3Key:             key,
+			ContentBase64:     base64.StdEncoding.EncodeToString(pngBytes),
+			ContentType:       framePNGContentType,
+		}
+		if err := s.framePub.PublishFrame(s.ctx, ev); err != nil {
+			metrics.KafkaFramesPublishErrors.WithLabelValues(MetricKafkaPublishStageWrite).Inc()
+			s.logger.Warn().Err(err).Str("key", key).Msg("kafka frames ingest")
+			return err
+		}
+		metrics.KafkaFrameBytes.Add(float64(len(pngBytes)))
 		return nil
 	})
 	g.Go(func() error {

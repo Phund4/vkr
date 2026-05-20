@@ -9,8 +9,8 @@ __pycache__/
 *.py[cod]
 .DS_Store
 .cursor/
+.vscode/
 .data/
-infra/prometheus/kubeconfig.docker
 # Тяжёлые веса (структура каталогов — через .gitkeep)
 services/ml-serving/artifacts/**/*.pt
 services/ml-serving/artifacts/**/*.pth

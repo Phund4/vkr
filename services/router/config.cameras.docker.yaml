@@ -1,14 +1,10 @@
-# Конфиг для docker compose: S3/RTSP — внутренние имена сервисов. ML — только Kafka (KAFKA_TOPIC_ML_*).
-s3:
-  endpoint: "http://minio:9000"
-  bucket: "its-frames"
+# Конфиг для docker compose: RTSP — mediamtx. Кадры в S3 пишет pusher (Kafka its.frames.ingest).
+storage:
   prefix: "its-ingest"
-  region: "us-east-1"
 
 ingest:
   target_fps: 5
   process_workers: 5
-  create_bucket_if_missing: true
   ffmpeg_path: "ffmpeg"
 
 metrics:

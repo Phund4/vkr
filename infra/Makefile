@@ -10,8 +10,7 @@ COMPOSE ?= docker compose
 # Профиль observability: ELK + Prometheus + Grafana (без infra; таргеты экспортёров в Prometheus могут быть DOWN).
 OBSERVABILITY_SERVICES := elasticsearch logstash kibana filebeat prometheus grafana
 
-# Сервисы из ../services/ (профиль apps). Для up нужны и infra, и apps — иначе depends_on
-# на kafka-topics-init, postgres и т.д. даёт «undefined service».
+# Сервисы из ../services/ (профиль apps). Зависимости (kafka, postgres, …) тоже в профиле apps.
 APPS_SERVICES := coordinator analytics pusher data-service ml-serving router
 
 # Go-модули: абсолютные пути (lint использует ./.golangci.yml в каждом модуле).
@@ -42,19 +41,6 @@ infra-logs: ## Логи профиля infra
 .PHONY: observability-up
 observability-up: ## Только observability: ELK + Prometheus + Grafana (таргеты compose)
 	cd $(INFRA_DIR) && $(COMPOSE) --profile observability up -d $(OBSERVABILITY_SERVICES)
-
-PROM_K8S_COMPOSE := -f docker-compose.yml -f docker-compose.prometheus-k8s.yml
-
-.PHONY: prometheus-kubeconfig
-prometheus-kubeconfig: ## kubeconfig для Prometheus в Docker → API Kubernetes (Rancher Desktop)
-	@mkdir -p $(INFRA_DIR)/prometheus
-	@kubectl config view --raw --minify --flatten | \
-	  sed 's|https://127.0.0.1:|https://host.docker.internal:|g; s|https://localhost:|https://host.docker.internal:|g' \
-	  > $(INFRA_DIR)/prometheus/kubeconfig.docker
-
-.PHONY: observability-k8s-up
-observability-k8s-up: prometheus-kubeconfig ## observability + scrape приложений из kubectl (namespace traffic)
-	cd $(INFRA_DIR) && $(COMPOSE) $(PROM_K8S_COMPOSE) --profile observability up -d $(OBSERVABILITY_SERVICES)
 
 .PHONY: observability-down
 observability-down: ## Остановить observability (infra не трогаем)

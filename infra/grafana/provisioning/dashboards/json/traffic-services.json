@@ -182,7 +182,7 @@
           "refId": "A"
         },
         {
-          "expr": "sum by (instance) (rate(router_bytes_uploaded_s3_total{instance=~\"$instance\"}[5m]))",
+          "expr": "sum by (instance) (rate(router_kafka_frame_bytes_total{instance=~\"$instance\"}[5m]))",
           "legendFormat": "router→S3 PNG {{instance}}",
           "refId": "B"
         },

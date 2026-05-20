@@ -11,19 +11,10 @@ import (
 	"router/internal/core/domain"
 )
 
-// S3 параметры объектного хранилища (MinIO-совместимый endpoint).
-type S3 struct {
-	// Endpoint URL API S3 без завершающего слэша.
-	Endpoint string `yaml:"endpoint"`
-
-	// Bucket имя бакета для кадров.
-	Bucket string `yaml:"bucket"`
-
-	// Prefix необязательный префикс ключей.
+// Storage префикс ключей кадров в S3 (загрузка выполняет pusher).
+type Storage struct {
+	// Prefix необязательный префикс ключей (например its-ingest).
 	Prefix string `yaml:"prefix"`
-
-	// Region регион для подписи запросов AWS SDK.
-	Region string `yaml:"region"`
 }
 
 // Ingest поведение захвата и выгрузки кадров.
@@ -31,13 +22,10 @@ type Ingest struct {
 	// TargetFPS целевой FPS для ffmpeg при дискретизации потока.
 	TargetFPS float64 `yaml:"target_fps"`
 
-	// CreateBucketIfMissing создать bucket при старте, если нет.
-	CreateBucketIfMissing bool `yaml:"create_bucket_if_missing"`
-
 	// FFmpegPath исполняемый файл ffmpeg.
 	FFmpegPath string `yaml:"ffmpeg_path"`
 
-	// ProcessWorkers параллельных обработчиков кадра (S3 + ML) на одну камеру.
+	// ProcessWorkers параллельных обработчиков кадра (Kafka + ML) на одну камеру.
 	// Если 0 — по умолчанию ceil(target_fps), чтобы скорость обработки могла совпасть с дискретизацией ffmpeg.
 	ProcessWorkers int `yaml:"process_workers"`
 }
@@ -69,8 +57,8 @@ func (c Camera) ToDomain() domain.Camera {
 
 // Root корневая конфигурация YAML.
 type Root struct {
-	// S3 настройки хранилища.
-	S3 S3 `yaml:"s3"`
+	// Storage префикс ключей для pusher (yaml: storage или legacy s3).
+	Storage Storage `yaml:"storage"`
 
 	// Ingest параметры пайплайна кадров.
 	Ingest Ingest `yaml:"ingest"`
@@ -131,9 +119,6 @@ func (c *Root) validate() error {
 	}
 	if c.Metrics.ListenAddr == "" {
 		c.Metrics.ListenAddr = ":9091"
-	}
-	if c.S3.Region == "" {
-		c.S3.Region = "us-east-1"
 	}
 	return nil
 }

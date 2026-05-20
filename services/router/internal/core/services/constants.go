@@ -12,8 +12,10 @@ const (
 
 	// frameKeyDateLayout формат даты в ключе объекта S3 (YYYY-MM-DD).
 	frameKeyDateLayout = "2006-01-02"
-	// frameObjectSuffix расширение файла кадра в S3.
+	// frameObjectSuffix расширение объекта кадра (ключ для pusher → S3).
 	frameObjectSuffix = ".png"
+	// framePNGContentType MIME для FrameIngestEvent.
+	framePNGContentType = "image/png"
 	// frameJPEGObjectName логическое имя JPEG-кадра в конвейере.
 	frameJPEGObjectName = "frame.jpg"
 
@@ -28,8 +30,8 @@ const (
 	MetricStageFrameRead = "frame_read"
 	// MetricStageJpegPng метка ошибки: JPEG → PNG.
 	MetricStageJpegPng = "jpeg_png"
-	// MetricStageS3Put метка ошибки: загрузка в S3.
-	MetricStageS3Put = "s3_put"
+	// MetricStageKafkaFramesPublish метка ошибки: публикация кадра в its.frames.ingest.
+	MetricStageKafkaFramesPublish = "kafka_frames_publish"
 	// MetricStageKafkaMLPublish метка ошибки: публикация в Kafka ML in.
 	MetricStageKafkaMLPublish = "kafka_ml_publish"
 

@@ -4,7 +4,7 @@ import (
 	"context"
 
 	coordinatorclient "router/internal/adapters/coordinator"
-	s3store "router/internal/adapters/s3"
+	kafkapub "router/internal/adapters/kafka"
 	"router/internal/config"
 	"router/internal/core/services"
 )
@@ -19,9 +19,9 @@ type App struct {
 type deps struct {
 	cfg         *config.Root
 	coordinator *coordinatorclient.Client
-	store       *s3store.Client
-	mlPub       services.MLFramePublisher
+	framePub    *kafkapub.FramePublisher
 	videoPub    services.VideoMetaPublisher
+	mlPub       services.MLFramePublisher
 }
 
 // New загружает конфиг из окружения и инициализирует клиент coordinator.

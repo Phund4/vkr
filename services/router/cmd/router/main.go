@@ -1,4 +1,4 @@
-// Program router — захват кадров с RTSP, S3, Kafka (video meta + ML in-topics) по назначениям coordinator.
+// Program router — захват кадров с RTSP, Kafka (video meta + frames for pusher + ML) по назначениям coordinator.
 package main
 
 import (
@@ -28,8 +28,6 @@ func main() {
 	}
 	if err := a.Run(rootCtx); err != nil {
 		switch {
-		case errors.Is(err, app.ErrMissingAWSCredentials):
-			zlog.Error().Msg("set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY (e.g. minioadmin)")
 		case errors.Is(err, app.ErrCoordinatorBaseURL), errors.Is(err, app.ErrCoordinatorIdentity):
 			zlog.Error().Err(err).Msg("coordinator env")
 		default:

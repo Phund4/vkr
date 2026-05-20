@@ -20,10 +20,10 @@ func (a *App) startCameras(ctx context.Context, cameras []domain.Camera, wg *syn
 			services.RunCamera(
 				ctx,
 				cam,
-				a.deps.store,
-				a.deps.mlPub,
+				a.deps.framePub,
 				a.deps.videoPub,
-				a.deps.cfg.S3.Prefix,
+				a.deps.mlPub,
+				a.deps.cfg.Storage.Prefix,
 				a.deps.cfg.Ingest.FFmpegPath,
 				a.deps.cfg.Ingest.TargetFPS,
 				a.deps.cfg.Ingest.ProcessWorkers,

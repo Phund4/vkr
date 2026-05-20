@@ -10,6 +10,8 @@ const (
 
 	// defaultKafkaTopicVideo топик метаданных кадра, если KAFKA_TOPIC_VIDEO не задан.
 	defaultKafkaTopicVideo = "its.video.ingest"
+	// defaultKafkaTopicFrames новый топик кадра для pusher, если KAFKA_TOPIC_FRAMES не задан.
+	defaultKafkaTopicFrames = "its.frames.ingest"
 	// defaultKafkaTopicMLAccidentIn вход accident-модели.
 	defaultKafkaTopicMLAccidentIn = "its.ml.accident.in"
 	// defaultKafkaTopicMLCongestionIn вход congestion-модели.

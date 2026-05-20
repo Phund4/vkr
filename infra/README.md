@@ -15,8 +15,7 @@
 ```bash
 cd infra
 make infra-up              # только ядро
-make observability-up      # ELK + Prometheus (таргеты compose; apps в compose)
-make observability-k8s-up  # то же, но scrape подов из kubectl namespace traffic
+make observability-up      # ELK + Prometheus + Grafana (таргеты compose)
 make apps-up               # приложения + зависимости infra
 make stack-up              # infra + apps (как K8s, без observability)
 make stack-full-up         # infra + observability + apps
