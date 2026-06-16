@@ -1,13 +1,14 @@
 # Профили (см. infra/Makefile):
-#   infra — БД, брокеры, ELK, Prometheus, симуляция видео (mediamtx + rtsp-generator из infra/rtsp-generator).
-#   apps  — только образы из ../services/ (coordinator, analytics, pusher, data-service, ml-serving, router).
+#   infra         — БД, брокеры, MinIO, ClickHouse, MediaMTX, rtsp-generator (то же ядро, что в deploy/k8s).
+#   observability — ELK, Prometheus, Grafana, экспортёры, cAdvisor, blackbox (в K8s не разворачивается).
+#   apps          — образы из ../services/ (coordinator, analytics, pusher, data-service, ml-serving, router).
 name: traffic-infra
 
 services:
   postgres:
     image: postgres:16
     hostname: postgres
-    profiles: [infra]
+    profiles: [infra, apps]
     environment:
       POSTGRES_DB: coordinator
       POSTGRES_USER: coordinator
@@ -30,7 +31,7 @@ services:
   kafka:
     image: apache/kafka:3.9.0
     hostname: kafka
-    profiles: [infra]
+    profiles: [infra, apps]
     ports:
       - "9092:9092"
     environment:
@@ -65,7 +66,7 @@ services:
 
   kafka-topics-init:
     image: apache/kafka:3.9.0
-    profiles: [infra]
+    profiles: [infra, apps]
     depends_on:
       kafka:
         condition: service_healthy
@@ -78,7 +79,12 @@ services:
           sleep 2
         done
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic its.video.ingest --partitions 3 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic its.frames.ingest --partitions 3 --replication-factor 1
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic its.persist.events --partitions 3 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic its.ml.accident.in --partitions 3 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic its.ml.accident.out --partitions 3 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic its.ml.congestion.in --partitions 3 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic its.ml.congestion.out --partitions 3 --replication-factor 1
     networks:
       - its
     restart: "no"
@@ -86,7 +92,7 @@ services:
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.17.0
     hostname: elasticsearch
-    profiles: [infra]
+    profiles: [observability]
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
@@ -108,7 +114,7 @@ services:
   logstash:
     image: docker.elastic.co/logstash/logstash:8.17.0
     hostname: logstash
-    profiles: [infra]
+    profiles: [observability]
     environment:
       - LS_JAVA_OPTS=-Xms256m -Xmx512m
       - PIPELINE_WORKERS=2
@@ -126,7 +132,7 @@ services:
   kibana:
     image: docker.elastic.co/kibana/kibana:8.17.0
     hostname: kibana
-    profiles: [infra]
+    profiles: [observability]
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
       - ELASTICSEARCH_URL=http://elasticsearch:9200
@@ -142,7 +148,7 @@ services:
   filebeat:
     image: docker.elastic.co/beats/filebeat:8.17.0
     hostname: filebeat
-    profiles: [infra]
+    profiles: [observability]
     user: root
     # Образ по умолчанию передаёт CMD "-environment container" → filebeat воспринимает "container" как подкоманду.
     command: ["filebeat", "-e", "--strict.perms=false", "-c", "/usr/share/filebeat/filebeat.yml"]
@@ -162,7 +168,7 @@ services:
   elasticsearch-exporter:
     image: quay.io/prometheuscommunity/elasticsearch-exporter:v1.7.0
     hostname: elasticsearch-exporter
-    profiles: [infra]
+    profiles: [observability]
     command:
       - "--es.uri=http://elasticsearch:9200"
       - "--es.all"
@@ -175,43 +181,34 @@ services:
   postgres-exporter:
     image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
     hostname: postgres-exporter
-    profiles: [infra]
+    profiles: [observability]
     environment:
       DATA_SOURCE_NAME: "postgresql://coordinator:coordinator@postgres:5432/coordinator?sslmode=disable"
     networks:
       - its
-    depends_on:
-      postgres:
-        condition: service_healthy
 
   kafka-exporter:
     image: danielqsj/kafka-exporter:v1.7.0
     hostname: kafka-exporter
-    profiles: [infra]
+    profiles: [observability]
     command:
       - "--kafka.server=kafka:9092"
     networks:
       - its
-    depends_on:
-      kafka:
-        condition: service_healthy
 
   clickhouse-exporter:
     image: f1yegor/clickhouse-exporter:latest
     hostname: clickhouse-exporter
-    profiles: [infra]
+    profiles: [observability]
     command:
       - "-scrape_uri=http://default:@clickhouse:8123"
     networks:
       - its
-    depends_on:
-      clickhouse:
-        condition: service_healthy
 
   clickhouse:
     image: clickhouse/clickhouse-server:24.8
     hostname: clickhouse
-    profiles: [infra]
+    profiles: [infra, apps]
     environment:
       CLICKHOUSE_USER: default
       CLICKHOUSE_PASSWORD: ""
@@ -237,7 +234,7 @@ services:
   clickhouse-init:
     image: clickhouse/clickhouse-server:24.8
     hostname: clickhouse-init
-    profiles: [infra]
+    profiles: [infra, apps]
     depends_on:
       clickhouse:
         condition: service_healthy
@@ -293,7 +290,7 @@ services:
   minio:
     image: minio/minio:RELEASE.2024-10-29T16-01-48Z
     hostname: minio
-    profiles: [infra]
+    profiles: [infra, apps]
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: minioadmin
@@ -315,7 +312,7 @@ services:
   minio-init:
     image: minio/mc:RELEASE.2024-11-17T19-35-25Z
     hostname: minio-init
-    profiles: [infra]
+    profiles: [infra, apps]
     depends_on:
       minio:
         condition: service_healthy
@@ -330,7 +327,7 @@ services:
   mediamtx:
     image: bluenviron/mediamtx:1.9.3
     hostname: mediamtx
-    profiles: [infra]
+    profiles: [infra, apps]
     ports:
       - "8554:8554"
     networks:
@@ -341,7 +338,7 @@ services:
       context: ./rtsp-generator
       dockerfile: Dockerfile
     hostname: rtsp-generator
-    profiles: [infra]
+    profiles: [infra, apps]
     environment:
       SERVICE_NAME: rtsp-generator
       LOG_FORMAT: json
@@ -394,6 +391,8 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       KAFKA_CONSUMER_GROUP: analytics-ingest
       KAFKA_TOPIC_VIDEO: its.video.ingest
+      KAFKA_TOPIC_ML_ACCIDENT_OUT: its.ml.accident.out
+      KAFKA_TOPIC_ML_CONGESTION_OUT: its.ml.congestion.out
       KAFKA_TOPIC_PERSIST: its.persist.events
     ports:
       - "8093:8093"
@@ -421,6 +420,7 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       KAFKA_CONSUMER_GROUP: pusher
       KAFKA_TOPIC_PERSIST: its.persist.events
+      KAFKA_TOPIC_FRAMES: its.frames.ingest
       CLICKHOUSE_ADDR: clickhouse:9000
       CLICKHOUSE_DATABASE: default
       CLICKHOUSE_USER: default
@@ -464,6 +464,10 @@ services:
       CLICKHOUSE_DATABASE: default
       CLICKHOUSE_USER: default
       CLICKHOUSE_PASSWORD: ""
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: its-frames
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
     ports:
       - "8610:8610"
       - "8611:8611"
@@ -483,19 +487,25 @@ services:
     profiles: [apps]
     environment:
       SERVING_ROOT: /app
-      ANALYTICS_INGEST_URL: http://analytics:8093/v1/ingest
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_CONSUMER_GROUP: ml-serving
+      KAFKA_TOPIC_ML_ACCIDENT_IN: its.ml.accident.in
+      KAFKA_TOPIC_ML_ACCIDENT_OUT: its.ml.accident.out
+      KAFKA_TOPIC_ML_CONGESTION_IN: its.ml.congestion.in
+      KAFKA_TOPIC_ML_CONGESTION_OUT: its.ml.congestion.out
       WINNERS_JSON: /app/models/winners.json
-      # Параллельный CPU-инференс (asyncio.to_thread); TORCH_NUM_THREADS=1 снижает oversubscription BLAS.
       ML_INFER_MAX_THREADS: "8"
       TORCH_NUM_THREADS: "1"
+      CONGESTION_INTERVAL_SEC: "2"
     volumes:
-      # Веса из корня репо: make sync-ml-artifacts → .data/artifacts (каталог в .gitignore)
       - ../.data/artifacts:/app/artifacts:ro
     ports:
       - "8000:8000"
     depends_on:
-      analytics:
-        condition: service_started
+      kafka:
+        condition: service_healthy
+      kafka-topics-init:
+        condition: service_completed_successfully
     networks:
       - its
 
@@ -514,12 +524,11 @@ services:
       COORDINATOR_ZONE_ID: zone-a
       COORDINATOR_CLUSTER_ID: cluster-1
       COORDINATOR_INSTANCE_ID: ingest-a1
-      AWS_ACCESS_KEY_ID: minioadmin
-      AWS_SECRET_ACCESS_KEY: minioadmin
-      S3_ENDPOINT: http://minio:9000
-      ML_BASE_URL: http://ml-serving:8000
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       KAFKA_TOPIC_VIDEO: its.video.ingest
+      KAFKA_TOPIC_FRAMES: its.frames.ingest
+      KAFKA_TOPIC_ML_ACCIDENT_IN: its.ml.accident.in
+      KAFKA_TOPIC_ML_CONGESTION_IN: its.ml.congestion.in
     volumes:
       - ../services/router/config.cameras.docker.yaml:/app/config.cameras.docker.yaml:ro
     ports:
@@ -527,14 +536,10 @@ services:
     depends_on:
       coordinator:
         condition: service_started
-      minio-init:
-        condition: service_completed_successfully
       kafka:
         condition: service_healthy
       kafka-topics-init:
         condition: service_completed_successfully
-      ml-serving:
-        condition: service_started
       mediamtx:
         condition: service_started
       rtsp-generator:
@@ -545,7 +550,7 @@ services:
   prometheus:
     image: prom/prometheus:v2.55.1
     hostname: prometheus
-    profiles: [infra]
+    profiles: [observability]
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
@@ -557,20 +562,11 @@ services:
       - "9090:9090"
     networks:
       - its
-    depends_on:
-      elasticsearch-exporter:
-        condition: service_started
-      postgres-exporter:
-        condition: service_started
-      kafka-exporter:
-        condition: service_started
-      clickhouse-exporter:
-        condition: service_started
 
   blackbox-exporter:
     image: prom/blackbox-exporter:v0.25.0
     hostname: blackbox-exporter
-    profiles: [infra]
+    profiles: [observability]
     command:
       - "--config.file=/etc/blackbox_exporter/config.yml"
     volumes:
@@ -583,7 +579,7 @@ services:
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:v0.49.1
     hostname: cadvisor
-    profiles: [infra]
+    profiles: [observability]
     privileged: true
     ports:
       - "8081:8080"
@@ -598,13 +594,14 @@ services:
   grafana:
     image: grafana/grafana:11.3.0
     hostname: grafana
-    profiles: [infra]
+    profiles: [observability]
     depends_on:
       - prometheus
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SECURITY_DISABLE_INITIAL_ADMIN_CHANGE: "true"
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana-data:/var/lib/grafana

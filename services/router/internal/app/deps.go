@@ -3,16 +3,17 @@ package app
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
-	"time"
+	"strings"
+
+	zlog "github.com/rs/zerolog/log"
 
 	coordinatorclient "router/internal/adapters/coordinator"
-	mlclient "router/internal/adapters/ml"
-	s3store "router/internal/adapters/s3"
+	kafkapub "router/internal/adapters/kafka"
 	"router/internal/config"
 )
 
+// initDeps загружает YAML/ENV и создаёт HTTP-клиент coordinator.
 func (a *App) initDeps(ctx context.Context) error {
 	cfg, err := config.LoadFromEnv()
 	if err != nil {
@@ -20,40 +21,60 @@ func (a *App) initDeps(ctx context.Context) error {
 	}
 	base := config.CoordinatorBaseURLFromEnv()
 	if base == "" {
-		return fmt.Errorf("set COORDINATOR_BASE_URL")
+		return ErrCoordinatorBaseURL
 	}
 	if config.CoordinatorZoneIDFromEnv() == "" || config.CoordinatorClusterIDFromEnv() == "" || config.CoordinatorInstanceIDFromEnv() == "" {
-		return fmt.Errorf("set COORDINATOR_ZONE_ID, COORDINATOR_CLUSTER_ID, COORDINATOR_INSTANCE_ID")
+		return ErrCoordinatorIdentity
 	}
 
 	a.deps = deps{
 		cfg:         cfg,
-		coordinator: coordinatorclient.New(base, 10*time.Second),
+		coordinator: coordinatorclient.New(base, coordinatorHTTPTimeout),
 	}
 	return nil
 }
 
+// initVideoPipeline поднимает Kafka: its.video.ingest, its.frames.ingest (pusher), ML in-топики.
 func (a *App) initVideoPipeline(ctx context.Context) error {
-	ak := os.Getenv("AWS_ACCESS_KEY_ID")
-	sk := os.Getenv("AWS_SECRET_ACCESS_KEY")
-	if ak == "" || sk == "" {
-		return ErrMissingAWSCredentials
+	_ = ctx
+	brokers := strings.TrimSpace(os.Getenv("KAFKA_BOOTSTRAP_SERVERS"))
+	if brokers == "" {
+		return fmt.Errorf("KAFKA_BOOTSTRAP_SERVERS is required for frame pipeline")
 	}
-	store, err := s3store.New(ctx, a.deps.cfg.S3.Endpoint, a.deps.cfg.S3.Region, a.deps.cfg.S3.Bucket, ak, sk)
-	if err != nil {
-		return fmt.Errorf("s3 client: %w", err)
+
+	videoTopic := strings.TrimSpace(os.Getenv("KAFKA_TOPIC_VIDEO"))
+	if videoTopic == "" {
+		videoTopic = defaultKafkaTopicVideo
 	}
-	if a.deps.cfg.Ingest.CreateBucketIfMissing {
-		if err := store.EnsureBucket(ctx); err != nil {
-			return fmt.Errorf("ensure bucket: %w", err)
-		}
-		slog.Info("bucket ok", "bucket", a.deps.cfg.S3.Bucket)
+	if pub := kafkapub.NewPublisher(brokers, videoTopic); pub != nil {
+		a.deps.videoPub = pub
+		zlog.Info().Str("topic", videoTopic).Msg("router kafka video meta enabled")
 	}
-	a.deps.store = store
-	a.deps.ml = mlclient.New(
-		a.deps.cfg.ML.BaseURL,
-		a.deps.cfg.ML.ProcessPath,
-		time.Duration(a.deps.cfg.ML.TimeoutSeconds)*time.Second,
-	)
+
+	framesTopic := strings.TrimSpace(os.Getenv("KAFKA_TOPIC_FRAMES"))
+	if framesTopic == "" {
+		framesTopic = defaultKafkaTopicFrames
+	}
+	framePub := kafkapub.NewFramePublisher(brokers, framesTopic)
+	if framePub == nil {
+		return fmt.Errorf("kafka frames publisher: invalid topics or brokers")
+	}
+	a.deps.framePub = framePub
+	zlog.Info().Str("topic", framesTopic).Msg("router kafka frames for pusher enabled")
+
+	accIn := strings.TrimSpace(os.Getenv("KAFKA_TOPIC_ML_ACCIDENT_IN"))
+	if accIn == "" {
+		accIn = defaultKafkaTopicMLAccidentIn
+	}
+	congIn := strings.TrimSpace(os.Getenv("KAFKA_TOPIC_ML_CONGESTION_IN"))
+	if congIn == "" {
+		congIn = defaultKafkaTopicMLCongestionIn
+	}
+	mlPub := kafkapub.NewMLPublisher(brokers, accIn, congIn)
+	if mlPub == nil {
+		return fmt.Errorf("kafka ML publishers: invalid topics or brokers")
+	}
+	a.deps.mlPub = mlPub
+	zlog.Info().Str("accident_in", accIn).Str("congestion_in", congIn).Msg("router kafka ML ingest enabled")
 	return nil
 }

@@ -2,7 +2,9 @@ INSERT INTO sources (source_id, data_class, zone_id, segment_id, camera_id, rtsp
 ('cam-01', 'road_segment_video', 'zone-a', 'ring-road-5', 'cam-01', 'rtsp://mediamtx:8554/cam-01', TRUE),
 ('cam-02', 'road_segment_video', 'zone-a', 'ring-road-5', 'cam-02', 'rtsp://mediamtx:8554/cam-02', TRUE),
 ('cam-03', 'road_segment_video', 'zone-a', 'ring-road-5', 'cam-03', 'rtsp://mediamtx:8554/cam-03', TRUE),
-('cam-04', 'road_segment_video', 'zone-a', 'ring-road-5', 'cam-04', 'rtsp://mediamtx:8554/cam-04', TRUE)
+('cam-04', 'road_segment_video', 'zone-a', 'ring-road-5', 'cam-04', 'rtsp://mediamtx:8554/cam-04', TRUE),
+('cam-05', 'road_segment_video', 'zone-a', 'ring-road-5', 'cam-05', 'rtsp://mediamtx:8554/cam-05', TRUE),
+('cam-06', 'road_segment_video', 'zone-a', 'ring-road-5', 'cam-06', 'rtsp://mediamtx:8554/cam-06', TRUE)
 ON CONFLICT (source_id) DO UPDATE
 SET data_class = EXCLUDED.data_class,
     zone_id = EXCLUDED.zone_id,

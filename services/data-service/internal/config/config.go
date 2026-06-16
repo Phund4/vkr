@@ -4,9 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-
-	"github.com/joho/godotenv"
-	"github.com/spf13/viper"
 )
 
 var (
@@ -14,7 +11,6 @@ var (
 	ErrMissingEnvVariable   = errors.New("missing environment variable")
 	ErrLoadServerConfig     = errors.New("failed to load server config")
 	errLoadClickhouseConfig = errors.New("failed to load clickhouse config")
-	ErrEnvVarFromFile       = errors.New("couldn't get environment variables from file")
 )
 
 const (
@@ -27,6 +23,7 @@ type Config struct {
 	Env        string
 	Server     ServerConfig
 	Clickhouse ClickhouseConfig
+	S3         S3Config
 }
 
 // LoadConfig загружает всю конфигурацию из переменных окружения
@@ -51,31 +48,16 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("%w: %w", errLoadClickhouseConfig, err)
 	}
 
+	s3Cfg, err := loadS3Config()
+	if err != nil {
+		return nil, err
+	}
+
 	return &Config{
 		Env:        env,
 		Server:     serverCfg,
 		Metrics:    metricsCfg,
 		Clickhouse: clickhouseCfg,
+		S3:         s3Cfg,
 	}, nil
-}
-
-// SetupViper настраивает Viper для чтения переменных окружения.
-func SetupViper(configFile, configType string) error {
-	if err := godotenv.Load(configFile); err != nil {
-		return fmt.Errorf("%w: %w", ErrEnvVarFromFile, err)
-	}
-
-	viper.SetConfigFile(configFile)
-	viper.SetConfigType(configType)
-	viper.AutomaticEnv()
-
-	return nil
-}
-
-// LoadAdditionalEnv загружает дополнительный .env файл поверх уже загруженных
-func LoadAdditionalEnv(configFile string) error {
-	if err := godotenv.Load(configFile); err != nil {
-		return fmt.Errorf("%w: %w", ErrEnvVarFromFile, err)
-	}
-	return nil
 }

@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clickhouse-init-sql
+data:
+  init.sql: |
+    CREATE TABLE IF NOT EXISTS default.road_incidents
+    (
+        observed_at DateTime64(3, 'UTC'),
+        segment_id LowCardinality(String),
+        camera_id LowCardinality(String),
+        s3_key String,
+        crash_probability Float64,
+        incident_label LowCardinality(String),
+        raw_ml String
+    )
+    ENGINE = MergeTree
+    ORDER BY (segment_id, camera_id, observed_at);
+
+    CREATE TABLE IF NOT EXISTS default.road_congestion
+    (
+        observed_at DateTime64(3, 'UTC'),
+        segment_id LowCardinality(String),
+        camera_id LowCardinality(String),
+        s3_key String,
+        congestion_score Float64,
+        raw_ml String
+    )
+    ENGINE = MergeTree
+    ORDER BY (segment_id, camera_id, observed_at);

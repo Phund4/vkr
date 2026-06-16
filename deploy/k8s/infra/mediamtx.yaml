@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mediamtx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mediamtx
+  template:
+    metadata:
+      labels:
+        app: mediamtx
+    spec:
+      containers:
+        - name: mediamtx
+          image: bluenviron/mediamtx:1.9.3
+          ports:
+            - containerPort: 8554
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mediamtx
+spec:
+  type: LoadBalancer
+  selector:
+    app: mediamtx
+  ports:
+    - port: 8554
+      targetPort: 8554

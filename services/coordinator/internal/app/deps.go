@@ -2,8 +2,9 @@ package app
 
 import (
 	"context"
-	"log/slog"
 	"time"
+
+	zlog "github.com/rs/zerolog/log"
 
 	"coordinator/internal/adapters/postgres"
 	"coordinator/internal/config"
@@ -26,6 +27,6 @@ func (a *App) initDeps(ctx context.Context) error {
 		svc:        services.NewCoordinatorService(pgs, time.Duration(cfg.HeartbeatTimeoutSec)*time.Second),
 		closeStore: pgs.Close,
 	}
-	slog.Info("coordinator store", "backend", "postgres")
+	zlog.Info().Str("backend", "postgres").Msg("coordinator store")
 	return nil
 }

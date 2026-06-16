@@ -2,87 +2,72 @@ package app
 
 import (
 	"context"
-	"fmt"
-	"log/slog"
-	"sync"
 	"time"
+
+	zlog "github.com/rs/zerolog/log"
 
 	httpmetrics "router/internal/adapters/http"
 	"router/internal/config"
 )
 
-// Run воркеры камер, heartbeat coordinator и /metrics.
+// Run запускает HTTP (/metrics, /v1/reload), heartbeat и ждёт push назначений от coordinator.
 func (a *App) Run(rootCtx context.Context) error {
-	logArgs := []any{
-		"config", a.deps.cfg.ConfigFile,
-		"metrics", a.deps.cfg.Metrics.ListenAddr,
-	}
-
 	zoneID := config.CoordinatorZoneIDFromEnv()
 	clusterID := config.CoordinatorClusterIDFromEnv()
 	instanceID := config.CoordinatorInstanceIDFromEnv()
 	if a.deps.coordinator == nil {
-		return fmt.Errorf("set COORDINATOR_BASE_URL")
+		return ErrCoordinatorBaseURL
 	}
 	if zoneID == "" || clusterID == "" || instanceID == "" {
-		return fmt.Errorf("set COORDINATOR_ZONE_ID, COORDINATOR_CLUSTER_ID, COORDINATOR_INSTANCE_ID")
+		return ErrCoordinatorIdentity
 	}
+
+	assign := newAssignmentController(a, rootCtx, zoneID, clusterID, instanceID)
+	a.assign = assign
 
 	if err := a.deps.coordinator.SendHeartbeat(rootCtx, zoneID, clusterID, instanceID, 0); err != nil {
-		slog.Warn("coordinator bootstrap heartbeat failed", "err", err)
+		zlog.Warn().Err(err).Msg("coordinator bootstrap heartbeat failed")
 	}
 
-	cameras, err := a.deps.coordinator.FetchCameraAssignments(rootCtx, zoneID, clusterID, instanceID)
-	if err != nil {
-		slog.Warn("coordinator camera assignments unavailable, starting in standby", "err", err)
-		cameras = nil
-	}
-	if len(cameras) == 0 {
-		slog.Info("no assignments yet, router is running in standby", "zone", zoneID, "cluster", clusterID, "instance", instanceID)
-	}
-	if len(cameras) > 0 {
-		if err := a.initVideoPipeline(rootCtx); err != nil {
-			return err
-		}
-		logArgs = append(logArgs, "rtsp_sources", len(cameras))
-		slog.Info("coordinator camera assignments applied", "assigned_sources", len(cameras), "zone", zoneID, "cluster", clusterID, "instance", instanceID)
-	}
-	assignmentCount := len(cameras)
-	if err := a.deps.coordinator.SendHeartbeat(rootCtx, zoneID, clusterID, instanceID, assignmentCount); err != nil {
-		slog.Warn("coordinator heartbeat failed", "err", err)
-	}
+	zlog.Info().
+		Str("zone", zoneID).
+		Str("cluster", clusterID).
+		Str("instance", instanceID).
+		Msg("router standby until coordinator POST /v1/assignments/reload")
+
 	go func() {
-		t := time.NewTicker(10 * time.Second)
+		t := time.NewTicker(heartbeatTickerInterval)
 		defer t.Stop()
 		for {
 			select {
 			case <-rootCtx.Done():
 				return
 			case <-t.C:
-				if err := a.deps.coordinator.SendHeartbeat(rootCtx, zoneID, clusterID, instanceID, assignmentCount); err != nil {
-					slog.Warn("coordinator heartbeat failed", "err", err)
+				if err := a.deps.coordinator.SendHeartbeat(
+					rootCtx, zoneID, clusterID, instanceID, assign.count(),
+				); err != nil {
+					zlog.Warn().Err(err).Msg("coordinator heartbeat failed")
 				}
 			}
 		}
 	}()
-	slog.Info("router starting", logArgs...)
 
-	var wg sync.WaitGroup
-	if len(cameras) > 0 {
-		a.startCameras(rootCtx, cameras, &wg)
-	}
+	startEvt := zlog.Info().
+		Str("config", a.deps.cfg.ConfigFile).
+		Str("metrics", a.deps.cfg.Metrics.ListenAddr)
+	startEvt.Msg("router starting")
 
 	srvDone := make(chan struct{})
 	go func() {
 		defer close(srvDone)
-		if err := httpmetrics.RunMetricsServer(rootCtx, a.deps.cfg.Metrics.ListenAddr); err != nil {
-			slog.Error("metrics server", "err", err)
+		if err := httpmetrics.RunServer(rootCtx, a.deps.cfg.Metrics.ListenAddr, a); err != nil {
+			zlog.Error().Err(err).Msg("http server")
 		}
 	}()
 
 	<-rootCtx.Done()
-	waitWorkers(&wg)
+	assign.stopWorkers()
 	<-srvDone
-	slog.Info("router stopped")
+	zlog.Info().Msg("router stopped")
 	return nil
 }

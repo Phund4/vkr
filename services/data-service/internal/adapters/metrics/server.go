@@ -19,13 +19,13 @@ var ErrRegisterPrometheusCollector = fmt.Errorf("error registering prometheus co
 type Server struct {
 	httpServer *http.Server
 	config     config.PrometheusConfig
-	adapter    *prometheusAdapter
+	adapter    *PrometheusAdapter
 	logger     *zerolog.Logger
 }
 
 const HttpMetricServerAddrPattern = ":%d"
 
-func registerDefaultCollectors(cfg config.MetricsConfig, adapter *prometheusAdapter) error {
+func registerDefaultCollectors(cfg config.MetricsConfig, adapter *PrometheusAdapter) error {
 	registerCollectorFunc := func(c prometheus.Collector) error {
 		if err := adapter.registry.Register(c); err != nil {
 			if alreadyRegisteredErr, ok := err.(prometheus.AlreadyRegisteredError); ok {
@@ -55,7 +55,7 @@ func registerDefaultCollectors(cfg config.MetricsConfig, adapter *prometheusAdap
 }
 
 // NewServer создает новый сервер метрик
-func NewServer(cfg config.MetricsConfig, adapter *prometheusAdapter, logger *zerolog.Logger) (*Server, error) {
+func NewServer(cfg config.MetricsConfig, adapter *PrometheusAdapter, logger *zerolog.Logger) (*Server, error) {
 	mux := http.NewServeMux()
 	mux.Handle(cfg.Prometheus.Path, adapter.PromHandler())
 

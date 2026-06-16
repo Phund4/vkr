@@ -11,6 +11,10 @@ const (
 	ErrInvalidRateLimitIdentifier = "invalid rate limit identifier"
 	ErrApiRateLimitExceeded       = "api rate limit exceeded"
 	ErrRoadDataRateLimitExceeded  = "road data rate limit exceeded"
+	ErrTimeRangeRequired          = "from and to query parameters are required (RFC3339)"
+	ErrTimeRangeInvalid           = "invalid from/to time range"
+	ErrCameraIDRequired           = "camera_id is required"
+	ErrSegmentIDRequired          = "segment_id is required"
 
 	ErrLimitQueryInvalid = "query param limit must be a positive integer"
 

@@ -3,50 +3,57 @@ package app
 import (
 	"context"
 	"fmt"
+	"strings"
 
-	"traffic-analytics/internal/adapters/clickhouse"
+	ingestkafka "traffic-analytics/internal/adapters/kafka"
 	"traffic-analytics/internal/config"
 	"traffic-analytics/internal/core/services"
 )
 
 // Deps инициализированные адаптеры и сервис приложения.
 type Deps struct {
-	// Config снимок настроек из окружения.
 	Config config.Config
 
-	// Store клиент ClickHouse для OLAP и справочников.
-	Store *clickhouse.Store
-
-	// Ingest HTTP-обработчик приёма событий.
 	Ingest *services.IngestService
 
-	// CHAddr нормализованный адрес ClickHouse (для логов).
-	CHAddr string
+	// PersistKafka writer во второй топик (pusher).
+	PersistKafka *ingestkafka.Publisher
 }
 
-// InitializeDependencies загружает конфиг (включая .env), подключает ClickHouse и создаёт IngestService.
+// InitializeDependencies загружает конфиг, Kafka producer и IngestService.
 func InitializeDependencies(ctx context.Context) (*Deps, error) {
 	cfg := config.Load()
 
-	chAddr := clickhouse.NormalizeAddr(cfg.ClickHouseAddr)
-	store, err := clickhouse.New(ctx, chAddr, cfg.ClickHouseDatabase, cfg.ClickHouseUser, cfg.ClickHousePassword, cfg.IncidentsTable, cfg.CongestionTable)
-	if err != nil {
-		return nil, fmt.Errorf("clickhouse: %w", err)
+	brokers := splitBrokers(cfg.KafkaBootstrap)
+	if len(brokers) == 0 || cfg.KafkaTopicPersist == "" {
+		return nil, fmt.Errorf("kafka: KAFKA_BOOTSTRAP_SERVERS and KAFKA_TOPIC_PERSIST are required")
 	}
 
-	ingest := services.NewIngestService(store, cfg, ctx)
+	pub := ingestkafka.NewPublisher(brokers, cfg.KafkaTopicPersist)
+
+	ingest := services.NewIngestService(pub, cfg, ctx)
 	return &Deps{
-		Config: cfg,
-		Store:  store,
-		Ingest: ingest,
-		CHAddr: chAddr,
+		Config:       cfg,
+		Ingest:       ingest,
+		PersistKafka: pub,
 	}, nil
 }
 
-// Close освобождает ресурсы зависимостей.
+func splitBrokers(s string) []string {
+	var out []string
+	for _, p := range strings.Split(s, ",") {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// Close закрывает Kafka writer.
 func (d *Deps) Close() error {
-	if d.Store == nil {
+	if d.PersistKafka == nil {
 		return nil
 	}
-	return d.Store.Close()
+	return d.PersistKafka.Close()
 }

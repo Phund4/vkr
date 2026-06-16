@@ -1,4 +1,4 @@
-// Package config читает настройки analytics из переменных окружения (после опционального .env).
+// Package config читает настройки analytics из переменных окружения.
 package config
 
 import (
@@ -13,24 +13,6 @@ type Config struct {
 	// ListenAddr адрес HTTP (ingest, metrics, health).
 	ListenAddr string
 
-	// ClickHouseAddr host:port native-протокола ClickHouse.
-	ClickHouseAddr string
-
-	// ClickHouseDatabase БД по умолчанию для таблиц analytics (incidents/congestion).
-	ClickHouseDatabase string
-
-	// ClickHouseUser имя пользователя CH.
-	ClickHouseUser string
-
-	// ClickHousePassword пароль CH (может быть пустым в dev).
-	ClickHousePassword string
-
-	// IncidentsTable имя таблицы инцидентов.
-	IncidentsTable string
-
-	// CongestionTable имя таблицы загруженности.
-	CongestionTable string
-
 	// CrashAlertThreshold порог crash_probability для алерта и записи инцидента.
 	CrashAlertThreshold float64
 
@@ -43,41 +25,28 @@ type Config struct {
 	// KafkaConsumerGroup группа для чтения топиков ingest.
 	KafkaConsumerGroup string
 
-	// KafkaTopicVideo топик событий ML/видео (опционально; основной путь — HTTP POST /v1/ingest).
+	// KafkaTopicVideo метаданные кадра (router → analytics), без ожидания ML.
 	KafkaTopicVideo string
+
+	// KafkaTopicMLAccidentOut результаты accident-модели (ml-serving → analytics).
+	KafkaTopicMLAccidentOut string
+
+	// KafkaTopicMLCongestionOut результаты congestion-модели (отдельное событие).
+	KafkaTopicMLCongestionOut string
+
+	// KafkaTopicPersist топик нормализованных событий для pusher (ClickHouse/S3).
+	KafkaTopicPersist string
 }
 
-// Load читает переменные окружения и возвращает Config с дефолтами (предварительно подгружает .env).
+// Load читает переменные окружения и возвращает Config с дефолтами.
 func Load() Config {
-	_ = tryLoadEnvFile()
 	c := Config{
 		ListenAddr:                ":8093",
-		ClickHouseAddr:            "127.0.0.1:9000",
-		ClickHouseDatabase:        "default",
-		ClickHouseUser:            "default",
-		IncidentsTable:            "road_incidents",
-		CongestionTable:           "road_congestion",
-		CrashAlertThreshold:       0.5,
+		CrashAlertThreshold:       0.8,
 		CongestionPersistInterval: 2 * time.Second,
 	}
 	if v := strings.TrimSpace(os.Getenv("LISTEN_ADDR")); v != "" {
 		c.ListenAddr = v
-	}
-	if v := strings.TrimSpace(os.Getenv("CLICKHOUSE_ADDR")); v != "" {
-		c.ClickHouseAddr = v
-	}
-	if v := strings.TrimSpace(os.Getenv("CLICKHOUSE_DATABASE")); v != "" {
-		c.ClickHouseDatabase = v
-	}
-	if v := strings.TrimSpace(os.Getenv("CLICKHOUSE_USER")); v != "" {
-		c.ClickHouseUser = v
-	}
-	c.ClickHousePassword = os.Getenv("CLICKHOUSE_PASSWORD")
-	if v := strings.TrimSpace(os.Getenv("CLICKHOUSE_INCIDENTS_TABLE")); v != "" {
-		c.IncidentsTable = v
-	}
-	if v := strings.TrimSpace(os.Getenv("CLICKHOUSE_CONGESTION_TABLE")); v != "" {
-		c.CongestionTable = v
 	}
 	if v := strings.TrimSpace(os.Getenv("CRASH_ALERT_THRESHOLD")); v != "" {
 		if f, err := strconv.ParseFloat(v, 64); err == nil {
@@ -97,6 +66,18 @@ func Load() Config {
 	c.KafkaTopicVideo = strings.TrimSpace(os.Getenv("KAFKA_TOPIC_VIDEO"))
 	if c.KafkaTopicVideo == "" {
 		c.KafkaTopicVideo = "its.video.ingest"
+	}
+	c.KafkaTopicPersist = strings.TrimSpace(os.Getenv("KAFKA_TOPIC_PERSIST"))
+	if c.KafkaTopicPersist == "" {
+		c.KafkaTopicPersist = "its.persist.events"
+	}
+	c.KafkaTopicMLAccidentOut = strings.TrimSpace(os.Getenv("KAFKA_TOPIC_ML_ACCIDENT_OUT"))
+	if c.KafkaTopicMLAccidentOut == "" {
+		c.KafkaTopicMLAccidentOut = "its.ml.accident.out"
+	}
+	c.KafkaTopicMLCongestionOut = strings.TrimSpace(os.Getenv("KAFKA_TOPIC_ML_CONGESTION_OUT"))
+	if c.KafkaTopicMLCongestionOut == "" {
+		c.KafkaTopicMLCongestionOut = "its.ml.congestion.out"
 	}
 	return c
 }

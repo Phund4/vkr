@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ml-serving
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ml-serving
+  template:
+    metadata:
+      labels:
+        app: ml-serving
+    spec:
+      initContainers:
+        - name: wait-kafka
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z kafka 9092; do
+                echo "waiting for kafka:9092..."
+                sleep 2
+              done
+      containers:
+        - name: ml-serving
+          image: traffic/ml-serving:local
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8000
+          env:
+            - name: SERVING_ROOT
+              value: /app
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: kafka:9092
+            - name: KAFKA_CONSUMER_GROUP
+              value: ml-serving
+            - name: KAFKA_TOPIC_ML_ACCIDENT_IN
+              value: its.ml.accident.in
+            - name: KAFKA_TOPIC_ML_ACCIDENT_OUT
+              value: its.ml.accident.out
+            - name: KAFKA_TOPIC_ML_CONGESTION_IN
+              value: its.ml.congestion.in
+            - name: KAFKA_TOPIC_ML_CONGESTION_OUT
+              value: its.ml.congestion.out
+            - name: WINNERS_JSON
+              value: /app/models/winners.json
+            - name: ML_INFER_MAX_THREADS
+              value: "8"
+            - name: TORCH_NUM_THREADS
+              value: "1"
+          volumeMounts:
+            - name: artifacts
+              mountPath: /app/artifacts
+              readOnly: true
+      volumes:
+        - name: artifacts
+          hostPath:
+            path: __PIIS_REPO_ROOT__/.data/artifacts
+            type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ml-serving
+spec:
+  type: LoadBalancer
+  selector:
+    app: ml-serving
+  ports:
+    - port: 8000
+      targetPort: 8000

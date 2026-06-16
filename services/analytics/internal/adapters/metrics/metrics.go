@@ -24,35 +24,35 @@ var (
 	CrashAlert = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "analytics_road_crash_alert",
-			Help: "1 if incident rule fired (crash label or probability threshold), else 0.",
+			Help: "1 if crash_probability >= CRASH_ALERT_THRESHOLD, else 0.",
 		},
 		[]string{"segment_id", "camera_id"},
 	)
 	IncidentsRecorded = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "analytics_road_incidents_recorded_total",
-			Help: "Rows successfully inserted into ClickHouse incidents table.",
+			Help: "Persist payloads with incident flag published to Kafka.",
 		},
 		[]string{"segment_id", "camera_id"},
 	)
 	CongestionRecorded = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "analytics_road_congestion_recorded_total",
-			Help: "Rows successfully inserted into ClickHouse congestion table.",
+			Help: "Persist payloads with congestion flag published to Kafka.",
 		},
 		[]string{"segment_id", "camera_id"},
 	)
-	ClickHouseErrors = promauto.NewCounterVec(
+	KafkaPublishErrors = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "analytics_clickhouse_errors_total",
-			Help: "ClickHouse client failures by operation.",
+			Name: "analytics_kafka_publish_errors_total",
+			Help: "Kafka persist topic write failures by stage.",
 		},
-		[]string{"op"},
+		[]string{"stage"},
 	)
-	IngestErrors = promauto.NewCounterVec(
+	ProcessErrors = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "analytics_ingest_errors_total",
-			Help: "Ingest handler errors by stage.",
+			Name: "analytics_process_errors_total",
+			Help: "Event processing errors by stage (Kafka ML results, video meta, optional debug handler).",
 		},
 		[]string{"stage"},
 	)
@@ -69,5 +69,12 @@ var (
 			Help: "Kafka consumer failures by stage.",
 		},
 		[]string{"stage"},
+	)
+	KafkaPublishDuration = promauto.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "analytics_kafka_publish_duration_seconds",
+			Help:    "Time to publish one persist payload to Kafka.",
+			Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2},
+		},
 	)
 )

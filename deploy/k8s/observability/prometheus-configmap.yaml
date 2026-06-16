@@ -1,0 +1,56 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+
+    scrape_configs:
+      - job_name: kubernetes-traffic
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+                - traffic
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            regex: router|analytics|coordinator|ml-serving|pusher|data-service|rtsp-generator
+            action: keep
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            regex: http
+            action: drop
+          - source_labels: [__meta_kubernetes_service_name]
+            target_label: job
+          - source_labels: [__meta_kubernetes_pod_name, __meta_kubernetes_endpoint_port_number]
+            separator: ":"
+            target_label: instance
+
+      # cAdvisor kubelet (метки pod, namespace, container) — для графиков CPU/RAM по подам
+      - job_name: kubelet-cadvisor
+        honor_timestamps: true
+        scrape_interval: 15s
+        scrape_timeout: 10s
+        metrics_path: /metrics/cadvisor
+        scheme: https
+        authorization:
+          credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        tls_config:
+          insecure_skip_verify: true
+        kubernetes_sd_configs:
+          - role: node
+        relabel_configs:
+          - action: labelmap
+            regex: __meta_kubernetes_node_label_(.+)
+          - target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - source_labels: [__meta_kubernetes_node_name]
+            regex: (.+)
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/$1/proxy/metrics/cadvisor
+
+      - job_name: prometheus
+        static_configs:
+          - targets: ["localhost:9090"]

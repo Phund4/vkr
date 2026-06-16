@@ -15,6 +15,114 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/api/v1/cameras/{camera_id}/incidents": {
+            "get": {
+                "summary": "Инциденты по камере за интервал времени",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Идентификатор камеры",
+                        "name": "camera_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Начало интервала (RFC3339)",
+                        "name": "from",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Конец интервала (RFC3339)",
+                        "name": "to",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Лимит строк",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.RoadIncidentsListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/frames": {
+            "get": {
+                "summary": "Кадры камеры из S3 за интервал (ключи из ClickHouse + presigned URL)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Идентификатор камеры",
+                        "name": "camera_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Начало интервала (RFC3339)",
+                        "name": "from",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Конец интервала (RFC3339)",
+                        "name": "to",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Лимит строк",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.FramesListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/road_congestion": {
             "get": {
                 "summary": "Список записей road_congestion",
@@ -32,8 +140,20 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "string",
+                        "description": "Начало интервала (RFC3339)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Конец интервала (RFC3339)",
+                        "name": "to",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
-                        "description": "Лимит строк (по умолчанию 100, макс. 500)",
+                        "description": "Лимит строк",
                         "name": "limit",
                         "in": "query"
                     }
@@ -42,19 +162,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/data-service_internal_adapters_http_dto.RoadCongestionListResponse"
+                            "$ref": "#/definitions/dto.RoadCongestionListResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/data-service_internal_adapters_http_dto.ErrorResponse"
+                            "$ref": "#/definitions/dto.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/data-service_internal_adapters_http_dto.ErrorResponse"
+                            "$ref": "#/definitions/dto.ErrorResponse"
                         }
                     }
                 }
@@ -77,6 +197,18 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "string",
+                        "description": "Начало интервала (RFC3339)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Конец интервала (RFC3339)",
+                        "name": "to",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
                         "description": "Лимит строк (по умолчанию 100, макс. 500)",
                         "name": "limit",
@@ -87,19 +219,67 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/data-service_internal_adapters_http_dto.RoadIncidentsListResponse"
+                            "$ref": "#/definitions/dto.RoadIncidentsListResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/data-service_internal_adapters_http_dto.ErrorResponse"
+                            "$ref": "#/definitions/dto.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/data-service_internal_adapters_http_dto.ErrorResponse"
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/segments/{segment_id}/congestion/average": {
+            "get": {
+                "summary": "Средняя загруженность контура (segment) за интервал",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Идентификатор контура/сегмента",
+                        "name": "segment_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Начало интервала (RFC3339)",
+                        "name": "from",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Конец интервала (RFC3339)",
+                        "name": "to",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.CongestionAverageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorResponse"
                         }
                     }
                 }
@@ -112,7 +292,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/data-service_internal_adapters_http_dto.ProbeResponse"
+                            "$ref": "#/definitions/dto.ProbeResponse"
                         }
                     }
                 }
@@ -125,7 +305,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/data-service_internal_adapters_http_dto.ProbeResponse"
+                            "$ref": "#/definitions/dto.ProbeResponse"
                         }
                     }
                 }
@@ -138,7 +318,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/data-service_internal_adapters_http_dto.ProbeResponse"
+                            "$ref": "#/definitions/dto.ProbeResponse"
                         }
                     }
                 }
@@ -146,7 +326,27 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "data-service_internal_adapters_http_dto.ErrorResponse": {
+        "dto.CongestionAverageResponse": {
+            "type": "object",
+            "properties": {
+                "avg_congestion_score": {
+                    "type": "number"
+                },
+                "from": {
+                    "type": "string"
+                },
+                "sample_count": {
+                    "type": "integer"
+                },
+                "segment_id": {
+                    "type": "string"
+                },
+                "to": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.ErrorResponse": {
             "type": "object",
             "properties": {
                 "message": {
@@ -157,7 +357,38 @@ const docTemplate = `{
                 }
             }
         },
-        "data-service_internal_adapters_http_dto.ProbeResponse": {
+        "dto.FrameItem": {
+            "type": "object",
+            "properties": {
+                "camera_id": {
+                    "type": "string"
+                },
+                "download_url": {
+                    "type": "string"
+                },
+                "observed_at": {
+                    "type": "string"
+                },
+                "s3_key": {
+                    "type": "string"
+                },
+                "segment_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.FramesListResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.FrameItem"
+                    }
+                }
+            }
+        },
+        "dto.ProbeResponse": {
             "type": "object",
             "properties": {
                 "message": {
@@ -168,7 +399,7 @@ const docTemplate = `{
                 }
             }
         },
-        "data-service_internal_adapters_http_dto.RoadCongestionItem": {
+        "dto.RoadCongestionItem": {
             "type": "object",
             "properties": {
                 "camera_id": {
@@ -191,18 +422,18 @@ const docTemplate = `{
                 }
             }
         },
-        "data-service_internal_adapters_http_dto.RoadCongestionListResponse": {
+        "dto.RoadCongestionListResponse": {
             "type": "object",
             "properties": {
                 "items": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/data-service_internal_adapters_http_dto.RoadCongestionItem"
+                        "$ref": "#/definitions/dto.RoadCongestionItem"
                     }
                 }
             }
         },
-        "data-service_internal_adapters_http_dto.RoadIncidentItem": {
+        "dto.RoadIncidentItem": {
             "type": "object",
             "properties": {
                 "camera_id": {
@@ -228,13 +459,13 @@ const docTemplate = `{
                 }
             }
         },
-        "data-service_internal_adapters_http_dto.RoadIncidentsListResponse": {
+        "dto.RoadIncidentsListResponse": {
             "type": "object",
             "properties": {
                 "items": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/data-service_internal_adapters_http_dto.RoadIncidentItem"
+                        "$ref": "#/definitions/dto.RoadIncidentItem"
                     }
                 }
             }
@@ -249,7 +480,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/",
 	Schemes:          []string{},
 	Title:            "ITS Data Service API",
-	Description:      "HTTP API: health/probe, чтение ClickHouse road_incidents и road_congestion, Swagger.",
+	Description:      "HTTP API: health/probe, кадры S3, инциденты и загруженность из ClickHouse, Swagger.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

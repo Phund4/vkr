@@ -4,24 +4,27 @@ import (
 	"context"
 
 	coordinatorclient "router/internal/adapters/coordinator"
-	mlclient "router/internal/adapters/ml"
-	s3store "router/internal/adapters/s3"
+	kafkapub "router/internal/adapters/kafka"
 	"router/internal/config"
+	"router/internal/core/services"
 )
 
-// App router: coordinator, опционально S3/ML после initVideoPipeline.
+// App точка входа router: coordinator, пайплайн видео после initVideoPipeline.
 type App struct {
-	deps deps
+	deps   deps
+	assign *assignmentController
 }
 
+// deps агрегирует зависимости рантайма.
 type deps struct {
 	cfg         *config.Root
 	coordinator *coordinatorclient.Client
-	store       *s3store.Client
-	ml          *mlclient.Client
+	framePub    *kafkapub.FramePublisher
+	videoPub    services.VideoMetaPublisher
+	mlPub       services.MLFramePublisher
 }
 
-// New загружает конфиг и клиент coordinator.
+// New загружает конфиг из окружения и инициализирует клиент coordinator.
 func New(ctx context.Context) (*App, error) {
 	a := &App{}
 	if err := a.initDeps(ctx); err != nil {

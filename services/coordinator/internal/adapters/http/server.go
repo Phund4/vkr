@@ -2,8 +2,9 @@ package httpserver
 
 import (
 	"context"
-	"log/slog"
 	"net/http"
+
+	zlog "github.com/rs/zerolog/log"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -21,6 +22,7 @@ func Run(ctx context.Context, listenAddr string, svc *services.CoordinatorServic
 	mux.Handle("GET /metrics", promhttp.Handler())
 	mux.HandleFunc("GET /v1/sources", h.Sources)
 	mux.HandleFunc("GET /v1/assignments", h.Assignments)
+	mux.HandleFunc("POST /v1/assignments/reload", h.ReloadAssignments)
 	mux.HandleFunc("POST /v1/workers/heartbeat", h.WorkerHeartbeat)
 	mux.HandleFunc("GET /v1/workers", h.Workers)
 	mux.HandleFunc("GET /v1/ingestion_instances", h.IngestionInstances)
@@ -36,7 +38,7 @@ func Run(ctx context.Context, listenAddr string, svc *services.CoordinatorServic
 		defer cancel()
 		_ = srv.Shutdown(shCtx)
 	}()
-	slog.Info("coordinator starting", "listen", listenAddr)
+	zlog.Info().Str("listen", listenAddr).Msg("coordinator starting")
 	err := srv.ListenAndServe()
 	if err != nil && err != http.ErrServerClosed {
 		return err

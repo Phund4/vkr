@@ -1,4 +1,4 @@
-"""ML serving API: incident classification and congestion score."""
+"""ML serving: health/metrics HTTP + Kafka its.ml.*.in → its.ml.*.out."""
 
 from __future__ import annotations
 
@@ -9,7 +9,8 @@ import os
 import sys
 import threading
 import time
-from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,22 +21,25 @@ try:
 except ImportError:
     pass
 else:
-    _env_file = os.environ.get("ENV_FILE", str(ROOT / ".env"))
-    load_dotenv(_env_file)
+    _env_file = Path(os.environ.get("ENV_FILE", str(ROOT / ".env")))
+    if _env_file.is_file():
+        load_dotenv(_env_file)
 
-import httpx
 import torch
 import torch.nn as nn
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import JSONResponse, Response
-from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import Response
 from PIL import Image
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
 sys.path.insert(0, str(ROOT))
 from inference_core import load_checkpoint_auto, make_transform
 
-app = FastAPI(title="ITS ML Serving", version="0.1")
+from api import kafka_worker
+
 _log = logging.getLogger("ml-serving")
+
+_infer_executor: ThreadPoolExecutor | None = None
 
 _acc_model: nn.Module | None = None
 _acc_img: int = 128
@@ -54,6 +58,23 @@ _winners_json_path: str = ""
 _acc_from_winners: bool = False
 _cong_from_winners: bool = False
 
+ML_KAFKA_MESSAGES_PROCESSED = Counter(
+    "ml_kafka_messages_total",
+    "Kafka ML pipeline messages",
+    ["branch", "stage"],
+)
+ML_KAFKA_ERRORS = Counter(
+    "ml_kafka_errors_total",
+    "Kafka ML worker failures",
+    ["branch", "stage"],
+)
+ML_KAFKA_DURATION = Histogram(
+    "ml_kafka_process_duration_seconds",
+    "Wall time per consumed Kafka frame",
+    ["branch"],
+    buckets=(0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0),
+)
+
 
 def _congestion_interval_sec() -> float:
     v = os.environ.get("CONGESTION_INTERVAL_SEC", "2").strip()
@@ -65,7 +86,6 @@ def _congestion_interval_sec() -> float:
 
 
 def _resolve_checkpoint_path(raw: str) -> Path:
-    """Absolute path, or relative to SERVING_ROOT."""
     p = Path(raw.strip())
     if p.is_file():
         return p.resolve()
@@ -95,8 +115,7 @@ def _load_winners_checkpoints() -> tuple[Path | None, Path | None]:
     return acc_p, cong_p
 
 
-@app.on_event("startup")
-def startup() -> None:
+def _startup_load_models() -> None:
     global _acc_model, _acc_img, _acc_tf, _crash_idx, _cong_model, _cong_img, _cong_tf
     global _acc_ckpt_used, _cong_ckpt_used, _winners_json_path, _acc_from_winners, _cong_from_winners
 
@@ -135,43 +154,30 @@ def startup() -> None:
 
     if acc_path.is_file():
         _acc_model, _acc_img, meta = load_checkpoint_auto(acc_path)
+        _acc_model.eval()
         _acc_tf = make_transform(_acc_img)
         _crash_idx = int(meta.get("class_to_idx", {}).get("crash", 0))
         _acc_ckpt_used = str(acc_path.resolve())
     if cong_path.is_file():
         _cong_model, _cong_img, _ = load_checkpoint_auto(cong_path)
+        _cong_model.eval()
         _cong_tf = make_transform(_cong_img)
         _cong_ckpt_used = str(cong_path.resolve())
 
-    ingest = os.environ.get("ANALYTICS_INGEST_URL", "").strip()
-    if not ingest:
-        _log.warning(
-            "ANALYTICS_INGEST_URL не задан: POST /v1/process без push в analytics "
-            "(только JSON-ответ, если не задан режим ingest)."
-        )
+    if not os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "").strip():
+        _log.warning("KAFKA_BOOTSTRAP_SERVERS не задан — Kafka ML workers не запустятся")
 
 
-@app.get("/metrics")
-def metrics():
-    """Минимальный exposition для Prometheus (up/scrape)."""
-    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
-
-
-@app.get("/health")
-def health():
-    return {
-        "accident_loaded": _acc_model is not None,
-        "congestion_loaded": _cong_model is not None,
-        "congestion_interval_sec": _congestion_interval_sec(),
-        "analytics_ingest_push": bool(os.environ.get("ANALYTICS_INGEST_URL", "").strip()),
-        "accident_checkpoint": _acc_ckpt_used or None,
-        "congestion_checkpoint": _cong_ckpt_used or None,
-        "winners_json": _winners_json_path or None,
-        "accident_from_winners_json": _acc_from_winners,
-        "congestion_from_winners_json": _cong_from_winners,
-        "analytics_ingest_configured": bool(os.environ.get("ANALYTICS_INGEST_URL", "").strip()),
-        "serving_root": str(SERVING_ROOT),
-    }
+def _configure_torch_threading() -> None:
+    intra = int(os.environ.get("TORCH_NUM_THREADS", "1"))
+    intra = max(1, intra)
+    torch.set_num_threads(intra)
+    inter = os.environ.get("TORCH_NUM_INTEROP_THREADS", "").strip()
+    if inter:
+        try:
+            torch.set_num_interop_threads(max(1, int(inter)))
+        except RuntimeError:
+            pass
 
 
 def _bytes_to_tensor(data: bytes, tf, device: torch.device) -> torch.Tensor:
@@ -181,7 +187,7 @@ def _bytes_to_tensor(data: bytes, tf, device: torch.device) -> torch.Tensor:
 
 def _predict_incident(raw: bytes) -> dict:
     if _acc_model is None or _acc_tf is None:
-        raise HTTPException(503, "accident model not loaded; set ACCIDENT_CKPT")
+        raise RuntimeError("accident model not loaded; set ACCIDENT_CKPT")
     x = _bytes_to_tensor(raw, _acc_tf, torch.device("cpu"))
     with torch.no_grad():
         logits = _acc_model(x)
@@ -199,7 +205,7 @@ def _predict_incident(raw: bytes) -> dict:
 
 def _predict_congestion(raw: bytes) -> dict:
     if _cong_model is None or _cong_tf is None:
-        raise HTTPException(503, "congestion model not loaded; set CONGESTION_CKPT")
+        raise RuntimeError("congestion model not loaded; set CONGESTION_CKPT")
     x = _bytes_to_tensor(raw, _cong_tf, torch.device("cpu"))
     with torch.no_grad():
         score = float(_cong_model(x).item())
@@ -215,58 +221,55 @@ def _congestion_for_pair(raw: bytes, segment_id: str, camera_id: str) -> dict:
             last_t, cached = _cong_cache[key]
             if now - last_t < interval:
                 return dict(cached)
-        out = _predict_congestion(raw)
-        _cong_cache[key] = (now, dict(out))
-        return out
+    out = _predict_congestion(raw)
+    now2 = time.monotonic()
+    with _cong_lock:
+        if key in _cong_cache:
+            last_t, cached = _cong_cache[key]
+            if now2 - last_t < interval:
+                return dict(cached)
+        _cong_cache[key] = (now2, dict(out))
+        return dict(out)
 
 
-def _process_payload(raw: bytes, segment_id: str = "", camera_id: str = "") -> dict:
-    incident = _predict_incident(raw)
-    seg = (segment_id or "").strip()
-    cam = (camera_id or "").strip()
-    congestion = _congestion_for_pair(raw, seg, cam) if seg and cam else _predict_congestion(raw)
-    return {"incident": incident, "congestion": congestion}
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    global _infer_executor
+    _startup_load_models()
+    _configure_torch_threading()
+    mw = int(os.environ.get("ML_INFER_MAX_THREADS", "0").strip() or "0")
+    if mw > 0:
+        _infer_executor = ThreadPoolExecutor(max_workers=max(1, mw), thread_name_prefix="ml_infer")
+    kafka_worker.start_kafka_workers()
+    yield
+    kafka_worker.stop_kafka_workers()
+    if _infer_executor is not None:
+        _infer_executor.shutdown(wait=True, cancel_futures=False)
+        _infer_executor = None
 
 
-async def _push_analytics_ingest(ml_payload: dict, segment_id: str, camera_id: str, s3_key: str, observed_at: str) -> None:
-    url = os.environ.get("ANALYTICS_INGEST_URL", "").strip()
-    if not url:
-        return
-    timeout = float(os.environ.get("ANALYTICS_INGEST_TIMEOUT_SEC", "15"))
-    body = {
-        "segment_id": segment_id,
-        "camera_id": camera_id,
-        "observed_at": observed_at,
-        "s3_key": s3_key,
-        "ml": ml_payload,
+app = FastAPI(title="ITS ML Serving", version="0.2", lifespan=_lifespan)
+
+
+@app.get("/metrics")
+def metrics():
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+@app.get("/health")
+def health():
+    return {
+        "accident_loaded": _acc_model is not None,
+        "congestion_loaded": _cong_model is not None,
+        "congestion_interval_sec": _congestion_interval_sec(),
+        "kafka_enabled": bool(os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "").strip()),
+        "kafka_topic_accident_in": os.environ.get("KAFKA_TOPIC_ML_ACCIDENT_IN", "its.ml.accident.in"),
+        "kafka_topic_accident_out": os.environ.get("KAFKA_TOPIC_ML_ACCIDENT_OUT", "its.ml.accident.out"),
+        "kafka_topic_congestion_in": os.environ.get("KAFKA_TOPIC_ML_CONGESTION_IN", "its.ml.congestion.in"),
+        "kafka_topic_congestion_out": os.environ.get("KAFKA_TOPIC_ML_CONGESTION_OUT", "its.ml.congestion.out"),
+        "accident_checkpoint": _acc_ckpt_used or None,
+        "congestion_checkpoint": _cong_ckpt_used or None,
+        "winners_json": _winners_json_path or None,
+        "serving_root": str(SERVING_ROOT),
+        "torch_num_threads": torch.get_num_threads(),
     }
-    try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            r = await client.post(url, json=body)
-    except httpx.RequestError as e:
-        raise HTTPException(502, f"analytics ingest unreachable: {e}") from e
-    if r.status_code < 200 or r.status_code >= 300:
-        raise HTTPException(502, f"analytics ingest HTTP {r.status_code}: {r.text[:512]}")
-
-
-@app.post("/v1/process")
-async def process(
-    image: UploadFile = File(...),
-    segment_id: str | None = Form(None),
-    camera_id: str | None = Form(None),
-    s3_key: str | None = Form(None),
-    observed_at: str | None = Form(None),
-):
-    raw = await image.read()
-    ingest_url = os.environ.get("ANALYTICS_INGEST_URL", "").strip()
-    seg = (segment_id or "").strip()
-    cam = (camera_id or "").strip()
-    if ingest_url:
-        if not seg or not cam:
-            raise HTTPException(400, "segment_id and camera_id are required when ANALYTICS_INGEST_URL is set")
-        payload = _process_payload(raw, seg, cam)
-        obs = (observed_at or "").strip() or datetime.now(timezone.utc).isoformat()
-        key = (s3_key or "").strip()
-        await _push_analytics_ingest(payload, seg, cam, key, obs)
-        return Response(status_code=204)
-    return JSONResponse(_process_payload(raw, seg, cam))

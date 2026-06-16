@@ -25,7 +25,7 @@ type PrometheusConfig struct {
 	Port int `envconfig:"PORT" default:"8081"`
 
 	// Path путь для эндпоинта метрик Prometheus
-	Path string `envconfig:"PATH" default:"/metrics"`
+	Path string `envconfig:"HTTP_PATH" default:"/metrics"`
 
 	// EnableGoCollector флаг включения сбора метрик стандартной Go runtime
 	EnableGoCollector bool `envconfig:"ENABLE_GO_COLLECTOR" default:"true"`

@@ -2,7 +2,7 @@ package services
 
 import "context"
 
-// withAppShutdown возвращает контекст, отменяемый при завершении HTTP-запроса или приложения.
+// withAppShutdown возвращает контекст, отменяемый при завершении HTTP-запроса или всего приложения (appCtx).
 func withAppShutdown(req, app context.Context) (context.Context, context.CancelFunc) {
 	ctx, cancel := context.WithCancel(req)
 	if app == nil {

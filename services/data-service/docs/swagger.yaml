@@ -1,20 +1,53 @@
 basePath: /
 definitions:
-  data-service_internal_adapters_http_dto.ErrorResponse:
+  dto.CongestionAverageResponse:
+    properties:
+      avg_congestion_score:
+        type: number
+      from:
+        type: string
+      sample_count:
+        type: integer
+      segment_id:
+        type: string
+      to:
+        type: string
+    type: object
+  dto.ErrorResponse:
     properties:
       message:
         type: string
       status:
         type: string
     type: object
-  data-service_internal_adapters_http_dto.ProbeResponse:
+  dto.FrameItem:
+    properties:
+      camera_id:
+        type: string
+      download_url:
+        type: string
+      observed_at:
+        type: string
+      s3_key:
+        type: string
+      segment_id:
+        type: string
+    type: object
+  dto.FramesListResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/dto.FrameItem'
+        type: array
+    type: object
+  dto.ProbeResponse:
     properties:
       message:
         type: string
       status:
         type: boolean
     type: object
-  data-service_internal_adapters_http_dto.RoadCongestionItem:
+  dto.RoadCongestionItem:
     properties:
       camera_id:
         type: string
@@ -29,14 +62,14 @@ definitions:
       segment_id:
         type: string
     type: object
-  data-service_internal_adapters_http_dto.RoadCongestionListResponse:
+  dto.RoadCongestionListResponse:
     properties:
       items:
         items:
-          $ref: '#/definitions/data-service_internal_adapters_http_dto.RoadCongestionItem'
+          $ref: '#/definitions/dto.RoadCongestionItem'
         type: array
     type: object
-  data-service_internal_adapters_http_dto.RoadIncidentItem:
+  dto.RoadIncidentItem:
     properties:
       camera_id:
         type: string
@@ -53,20 +86,92 @@ definitions:
       segment_id:
         type: string
     type: object
-  data-service_internal_adapters_http_dto.RoadIncidentsListResponse:
+  dto.RoadIncidentsListResponse:
     properties:
       items:
         items:
-          $ref: '#/definitions/data-service_internal_adapters_http_dto.RoadIncidentItem'
+          $ref: '#/definitions/dto.RoadIncidentItem'
         type: array
     type: object
 info:
   contact: {}
-  description: 'HTTP API: health/probe, чтение ClickHouse road_incidents и road_congestion,
+  description: 'HTTP API: health/probe, кадры S3, инциденты и загруженность из ClickHouse,
     Swagger.'
   title: ITS Data Service API
   version: "1.0"
 paths:
+  /api/v1/cameras/{camera_id}/incidents:
+    get:
+      parameters:
+      - description: Идентификатор камеры
+        in: path
+        name: camera_id
+        required: true
+        type: string
+      - description: Начало интервала (RFC3339)
+        in: query
+        name: from
+        required: true
+        type: string
+      - description: Конец интервала (RFC3339)
+        in: query
+        name: to
+        required: true
+        type: string
+      - description: Лимит строк
+        in: query
+        name: limit
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.RoadIncidentsListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Инциденты по камере за интервал времени
+  /api/v1/frames:
+    get:
+      parameters:
+      - description: Идентификатор камеры
+        in: query
+        name: camera_id
+        required: true
+        type: string
+      - description: Начало интервала (RFC3339)
+        in: query
+        name: from
+        required: true
+        type: string
+      - description: Конец интервала (RFC3339)
+        in: query
+        name: to
+        required: true
+        type: string
+      - description: Лимит строк
+        in: query
+        name: limit
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.FramesListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Кадры камеры из S3 за интервал (ключи из ClickHouse + presigned URL)
   /api/v1/road_congestion:
     get:
       parameters:
@@ -78,7 +183,15 @@ paths:
         in: query
         name: camera_id
         type: string
-      - description: Лимит строк (по умолчанию 100, макс. 500)
+      - description: Начало интервала (RFC3339)
+        in: query
+        name: from
+        type: string
+      - description: Конец интервала (RFC3339)
+        in: query
+        name: to
+        type: string
+      - description: Лимит строк
         in: query
         name: limit
         type: integer
@@ -86,15 +199,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/data-service_internal_adapters_http_dto.RoadCongestionListResponse'
+            $ref: '#/definitions/dto.RoadCongestionListResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/data-service_internal_adapters_http_dto.ErrorResponse'
+            $ref: '#/definitions/dto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/data-service_internal_adapters_http_dto.ErrorResponse'
+            $ref: '#/definitions/dto.ErrorResponse'
       summary: Список записей road_congestion
   /api/v1/road_incidents:
     get:
@@ -107,6 +220,14 @@ paths:
         in: query
         name: camera_id
         type: string
+      - description: Начало интервала (RFC3339)
+        in: query
+        name: from
+        type: string
+      - description: Конец интервала (RFC3339)
+        in: query
+        name: to
+        type: string
       - description: Лимит строк (по умолчанию 100, макс. 500)
         in: query
         name: limit
@@ -115,23 +236,55 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/data-service_internal_adapters_http_dto.RoadIncidentsListResponse'
+            $ref: '#/definitions/dto.RoadIncidentsListResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/data-service_internal_adapters_http_dto.ErrorResponse'
+            $ref: '#/definitions/dto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/data-service_internal_adapters_http_dto.ErrorResponse'
+            $ref: '#/definitions/dto.ErrorResponse'
       summary: Список записей road_incidents
+  /api/v1/segments/{segment_id}/congestion/average:
+    get:
+      parameters:
+      - description: Идентификатор контура/сегмента
+        in: path
+        name: segment_id
+        required: true
+        type: string
+      - description: Начало интервала (RFC3339)
+        in: query
+        name: from
+        required: true
+        type: string
+      - description: Конец интервала (RFC3339)
+        in: query
+        name: to
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.CongestionAverageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Средняя загруженность контура (segment) за интервал
   /health:
     get:
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/data-service_internal_adapters_http_dto.ProbeResponse'
+            $ref: '#/definitions/dto.ProbeResponse'
       summary: Liveness / health
   /probe/health:
     get:
@@ -139,7 +292,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/data-service_internal_adapters_http_dto.ProbeResponse'
+            $ref: '#/definitions/dto.ProbeResponse'
       summary: Health (probe path)
   /probe/ready:
     get:
@@ -147,6 +300,6 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/data-service_internal_adapters_http_dto.ProbeResponse'
+            $ref: '#/definitions/dto.ProbeResponse'
       summary: Readiness probe
 swagger: "2.0"

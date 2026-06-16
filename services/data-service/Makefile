@@ -24,13 +24,15 @@ install-tools:
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
-.PHONY: generate-swagger swagger docs
+.PHONY: generate-swagger generate-docs swagger docs
 # Повторная генерация OpenAPI (каталог docs/) из swag-комментариев в коде.
 generate-swagger:
 	go run github.com/swaggo/swag/cmd/swag@latest init -g ./cmd/main.go -o docs -d . --parseInternal
 
+generate-docs: generate-swagger ## сгенерировать Swagger в docs/
+
 swagger: generate-swagger ## удобный алиас
-docs: generate-swagger     ## удобный алиас
+docs: generate-docs        ## удобный алиас
 
 .PHONY: generate-proto
 generate-proto:

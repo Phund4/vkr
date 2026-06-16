@@ -2,7 +2,8 @@ package app
 
 import (
 	"context"
-	"log/slog"
+
+	zlog "github.com/rs/zerolog/log"
 
 	ingestkafka "traffic-analytics/internal/adapters/kafka"
 )
@@ -15,13 +16,13 @@ func Run(rootCtx context.Context) error {
 	}
 	defer func() {
 		if err := deps.Close(); err != nil {
-			slog.Warn("deps close", "err", err)
+			zlog.Warn().Err(err).Msg("deps close")
 		}
 	}()
 
 	if deps.Config.KafkaBootstrap != "" {
 		go func() {
-			ingestkafka.RunIngestConsumer(rootCtx, deps.Ingest, deps.Config)
+			ingestkafka.RunConsumers(rootCtx, deps.Ingest, deps.Config)
 		}()
 	}
 

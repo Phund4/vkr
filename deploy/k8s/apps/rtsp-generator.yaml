@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rtsp-generator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rtsp-generator
+  template:
+    metadata:
+      labels:
+        app: rtsp-generator
+    spec:
+      containers:
+        - name: rtsp-generator
+          image: traffic/rtsp-generator:local
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8096
+          env:
+            - name: SERVICE_NAME
+              value: rtsp-generator
+            - name: LOG_FORMAT
+              value: json
+            - name: LOG_LEVEL
+              value: info
+            - name: LISTEN_ADDR
+              value: ":8096"
+            - name: RTSP_PUBLISH_BASE
+              value: rtsp://mediamtx:8554
+            - name: SIM_VIDEO_DIR
+              value: /videos
+            - name: SIM_FPS
+              value: "25"
+            - name: SIM_SIZE
+              value: 1280x720
+          volumeMounts:
+            - name: videos
+              mountPath: /videos
+              readOnly: true
+      volumes:
+        - name: videos
+          hostPath:
+            path: __PIIS_REPO_ROOT__/.data/videos
+            type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rtsp-generator
+spec:
+  type: LoadBalancer
+  selector:
+    app: rtsp-generator
+  ports:
+    - port: 8096
+      targetPort: 8096

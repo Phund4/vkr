@@ -1,34 +1,38 @@
-// Program router — захват кадров с RTSP, загрузка в S3 и вызов ML.
+// Program router — захват кадров с RTSP, Kafka (video meta + frames for pusher + ML) по назначениям coordinator.
 package main
 
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 
+	zlog "github.com/rs/zerolog/log"
+
 	"router/internal/app"
+	"router/internal/logging"
 )
 
+// main инициализирует приложение, подписывается на SIGINT/SIGTERM и блокируется до остановки.
 func main() {
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo})))
+	logging.InitGlobal("router")
 
 	rootCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	a, err := app.New(rootCtx)
 	if err != nil {
-		slog.Error("init", "err", err)
+		zlog.Error().Err(err).Msg("init")
 		os.Exit(1)
 	}
 	if err := a.Run(rootCtx); err != nil {
-		if errors.Is(err, app.ErrMissingAWSCredentials) {
-			slog.Error("set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY (e.g. minioadmin)")
-			os.Exit(1)
+		switch {
+		case errors.Is(err, app.ErrCoordinatorBaseURL), errors.Is(err, app.ErrCoordinatorIdentity):
+			zlog.Error().Err(err).Msg("coordinator env")
+		default:
+			zlog.Error().Err(err).Msg("run")
 		}
-		slog.Error("run", "err", err)
 		os.Exit(1)
 	}
 }

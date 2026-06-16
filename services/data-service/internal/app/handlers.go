@@ -20,8 +20,11 @@ const (
 
 	ApiV1Path = "/api/v1"
 
-	RoadIncidentsPath  = "/road_incidents"
-	RoadCongestionPath = "/road_congestion"
+	RoadIncidentsPath       = "/road_incidents"
+	RoadCongestionPath      = "/road_congestion"
+	FramesPath              = "/frames"
+	CameraIncidentsPath     = "/cameras/:camera_id/incidents"
+	SegmentCongestionAvgPath = "/segments/:segment_id/congestion/average"
 )
 
 type handlers struct {
@@ -50,4 +53,7 @@ func (app *App) initHandlers() {
 	apiV1 := app.httpServer.Group(ApiV1Path)
 	apiV1.GET(RoadIncidentsPath, app.deps.handlers.road.ListRoadIncidents)
 	apiV1.GET(RoadCongestionPath, app.deps.handlers.road.ListRoadCongestion)
+	apiV1.GET(FramesPath, app.deps.handlers.road.ListFrames)
+	apiV1.GET(CameraIncidentsPath, app.deps.handlers.road.ListCameraIncidents)
+	apiV1.GET(SegmentCongestionAvgPath, app.deps.handlers.road.AvgSegmentCongestion)
 }
